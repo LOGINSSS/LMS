@@ -43,7 +43,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+8:00
     ports:
-      - "3306:3306"
+      - "13306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro   # 可选：启动时自动执行建库脚本
@@ -95,7 +95,7 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server lms-kafka:9092 >/dev/null 2>&1"]
       interval: 15s
       timeout: 10s
       retries: 12
