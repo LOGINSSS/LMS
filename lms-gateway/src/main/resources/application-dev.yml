@@ -1,0 +1,12 @@
+# 开发环境（本地 Docker Desktop 基础设施）
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+
+logging:
+  level:
+    org.springframework.cloud.gateway: debug

@@ -1,0 +1,157 @@
+# =====================================================================
+# LMS 微服务练手项目 - 基础设施编排
+# 使用方式：docker compose up -d          （仅启动核心：nacos/mysql/redis/kafka/es）
+#           docker compose --profile tools up -d   （额外启动 kafka-ui/kibana）
+# 停止：    docker compose down           （保留数据卷）
+#           docker compose down -v       （连同数据卷一起删除）
+# =====================================================================
+
+name: lms
+
+services:
+  # ---------- 注册中心 / 配置中心：Nacos ----------
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: lms-nacos
+    environment:
+      - MODE=standalone          # 单机模式（练手用；生产应改为集群）
+      - NACOS_AUTH_ENABLE=false  # 练手环境关闭鉴权
+      - JVM_XMS=256m
+      - JVM_XMX=256m
+    ports:
+      - "8848:8848"              # HTTP 控制台
+      - "9848:9848"              # gRPC（客户端连接必需）
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  # ---------- MySQL 8 ----------
+  mysql:
+    image: mysql:8.0.36
+    container_name: lms-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lms        # 默认库；业务库按 lms_<domain> 独立创建（见 README）
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+8:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro   # 可选：启动时自动执行建库脚本
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---------- Redis 7 ----------
+  redis:
+    image: redis:7.2.5
+    container_name: lms-redis
+    command: redis-server --appendonly yes --requirepass 123456
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  # ---------- Kafka 3.8（KRaft 单节点，无需 ZooKeeper）----------
+  # 双监听：容器内 kafka:9092（给 docker 网络内的 kafka-ui 用）
+  #        宿主机 localhost:29092（给 IDEA 里跑的 Spring Boot 应用用）
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: lms-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@lms-kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://lms-kafka:9092,CONTROLLER://lms-kafka:9093,PLAINTEXT_HOST://lms-kafka:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://lms-kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # ---------- Elasticsearch 8（单节点，练手关闭安全认证）----------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: lms-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # ---------- 可选工具（--profile tools 启动）----------
+  # Kafka 可视化控制台：查看 topic / 发送消费消息
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.5
+    container_name: lms-kafka-ui
+    profiles: ["tools"]
+    ports:
+      - "9000:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: lms-kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # Kibana：ES 数据浏览（Dev Tools 方便写查询）
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: lms-kibana
+    profiles: ["tools"]
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      I18N_LOCALE: zh-CN
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  nacos-data:
+  mysql-data:
+  redis-data:
+  kafka-data:
+  es-data:

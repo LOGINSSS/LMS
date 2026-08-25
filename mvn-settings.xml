@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LMS 项目专用 Maven settings（可选）
+  - 本机 Maven 安装目录 settings.xml 将 localRepository 指向安装目录内（无写权限），
+    且 Maven 3.9 中该配置优先于 -Dmaven.repo.local，因此用 -s 指定本文件。
+  - localRepository 指向项目工作区内 .m2-repo（已 gitignore），保证任何环境可构建。
+  使用：mvn -s mvn-settings.xml clean install
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+    <localRepository>${maven.multiModuleProjectDirectory}/.m2-repo</localRepository>
+</settings>

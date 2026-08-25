@@ -1,0 +1,24 @@
+# ===== Java / Maven =====
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.m2-repo/
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# ===== OS / 日志 =====
+.DS_Store
+Thumbs.db
+logs/
+*.log
+
+# ===== 本地环境配置 =====
+application-local.yml
+.env.local

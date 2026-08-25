@@ -1,0 +1,3 @@
+com.lms.common.autoconfigure.mybatis.MybatisAutoConfiguration
+com.lms.common.autoconfigure.mvc.MvcAutoConfiguration
+com.lms.common.autoconfigure.swagger.OpenApiAutoConfiguration

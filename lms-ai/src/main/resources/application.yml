@@ -1,0 +1,37 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: lms-ai
+  # 从 Nacos 配置中心拉取配置（optional：Nacos 中暂无配置时不影响启动，本地配置兜底）
+  config:
+    import: optional:nacos:lms-ai.yaml?group=DEFAULT_GROUP
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yaml
+        group: DEFAULT_GROUP
+
+# ============ AgentScope Java（LLM 模型接入，配置键经本地 jar 源码核对） ============
+# 模型后端：通义千问 DashScope（OpenAI 兼容模式）
+# api-key 通过环境变量 DASHSCOPE_API_KEY 注入，不要写死在代码/配置文件里
+agentscope:
+  openai:
+    enabled: true                                            # 启用 OpenAI 兼容模型自动配置
+    api-key: ${DASHSCOPE_API_KEY:}                           # 阿里云百炼 API Key
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model-name: qwen-plus                                    # 通义千问模型（qwen-plus / qwen-max / qwen-turbo）
+    stream: true
+  model:
+    provider: dashscope
+
+# Knife4j / springdoc
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    path: /doc.html

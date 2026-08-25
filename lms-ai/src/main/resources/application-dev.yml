@@ -1,0 +1,12 @@
+# 开发环境
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+
+logging:
+  level:
+    com.lms.ai: debug
