@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: lms-course
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+  config:
+    import:
+      - optional:nacos:lms-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - optional:nacos:lms-course.yaml?group=DEFAULT_GROUP&refreshEnabled=true

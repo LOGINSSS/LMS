@@ -25,6 +25,7 @@
         <module>lms-gateway</module>
         <module>lms-auth</module>
         <module>lms-user</module>
+        <module>lms-course</module>
         <module>lms-ai</module>
     </modules>
 

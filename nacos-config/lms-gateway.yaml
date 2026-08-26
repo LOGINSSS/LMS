@@ -18,6 +18,11 @@ spring:
           uri: lb://lms-user
           predicates:
             - Path=/users/**,/admin/users/**
+        # 课程服务：卡片展示/选课/教师管理（需登录）
+        - id: lms-course
+          uri: lb://lms-course
+          predicates:
+            - Path=/courses/**,/admin/courses/**
         # AI 服务
         - id: lms-ai
           uri: lb://lms-ai

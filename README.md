@@ -26,14 +26,15 @@ LMS/
 ├── pom.xml                  # 父工程：聚合模块 + 统一版本管理（唯一版本源）
 ├── docker-compose.yml       # 基础设施：nacos/mysql/redis/kafka/es（+ kafka-ui/kibana）
 ├── docker/mysql/init/       # MySQL 首次启动自动执行的建库脚本（每服务独立库 lms_<domain>）
-├── nacos-config/            # 配置中心内容（lms-common/lms-auth/lms-user/lms-gateway.yaml）
+├── nacos-config/            # 配置中心内容（lms-common/lms-auth/lms-user/lms-course/lms-gateway.yaml）
 ├── scripts/                 # push-nacos-config.ps1 等运维脚本
 ├── lms-common/              # 公共库（library）：统一响应/异常、分页、hutool 工具、自动配置
 ├── lms-gateway/             # 网关：路由（lb://）、统一 JWT 鉴权过滤器、user-info 透传
 ├── lms-auth/                # 认证服务：注册/登录/登出/JWT 签发/登录日志（库 lms_auth）
 ├── lms-user/                # 用户服务：学生/教师档案、管理端分页（库 lms_user）
+├── lms-course/              # 课程服务：课程卡片展示、教师建课/管理、学生选课（库 lms_course）
 ├── lms-ai/                  # AI 能力服务：AgentScope Java + DashScope（LLM 接入）
-└── ...业务模块（lms-course / ...）后续逐模块添加
+└── ...业务模块（lms-order / ...）后续逐模块添加
 ```
 
 ## 快速开始
@@ -51,7 +52,7 @@ docker compose ps                        # 查看状态（等所有容器 health
 | 服务 | 地址 | 账号 |
 |---|---|---|
 | Nacos 控制台 | http://localhost:8848/nacos | nacos / nacos（练手环境已关鉴权） |
-| MySQL | localhost:13306 | root / root（业务库 `lms_auth`/`lms_user`，默认库 `lms`） |
+| MySQL | localhost:13306 | root / root（业务库 `lms_auth`/`lms_user`/`lms_course`，默认库 `lms`） |
 | Redis | localhost:6379 | 密码 `123456` |
 | Kafka（宿主机应用连接） | localhost:29092 | — |
 | Kafka（容器内服务连接） | lms-kafka:9092 | — |
@@ -61,6 +62,7 @@ docker compose ps                        # 查看状态（等所有容器 health
 | 网关 | http://localhost:8080 | — |
 | 认证服务（lms-auth） | http://localhost:8085 | — |
 | 用户服务（lms-user） | http://localhost:8086 | — |
+| 课程服务（lms-course） | http://localhost:8087 | — |
 | AI 服务（lms-ai） | http://localhost:8090 | 需配置 DashScope API Key |
 
 > 注意：MySQL 宿主机端口为 **13306**（容器内 3306），IDEA 里跑服务连数据库用 `localhost:13306`；3306 是本机原生 MySQL。
@@ -135,6 +137,48 @@ curl localhost:8080/users/me -H "Authorization: Bearer <token>"
 ```
 
 > 前端拿到登录响应中的 `userType` 即可分流：1 跳学生端、2 跳教师端；后续基于 `UserContext.getUserType()` 做角色鉴权。
+
+## 课程模块（lms-course）
+
+### 业务模型
+
+- **一个课程只归属一个教师**（`course.teacher_id`，建课时从当前登录教师取，`teacher_name` 冗余快照供卡片展示免跨服务联查）；
+- **一个课程可接受很多学生**（`course_enrollment` 一对多，唯一索引 `uk_course_student` 防重复选课）；
+- 课程有上下架状态：**新课程默认下架，发布后学生才可见、可选**。
+
+### 接口清单
+
+| 方法 | 路径 | 说明 | 权限 |
+|---|---|---|---|
+| GET | /courses/page | 课程卡片分页（只含已发布，附实时选课人数 totalCount） | 登录 |
+| GET | /courses/{id} | 课程卡片详情 | 登录 |
+| POST | /courses/{id}/enroll | 学生选课（幂等，重复选报 2203） | 学生 |
+| POST | /courses/{id}/quit | 学生退课（状态置 0 保留历史） | 学生 |
+| GET | /courses/enrolled | 我选过的课程 | 学生 |
+| POST | /admin/courses | 教师添加课程（默认下架） | 教师 |
+| PUT | /admin/courses/{id} | 修改课程（仅本人，非 null 字段更新） | 教师本人 |
+| PUT | /admin/courses/{id}/status?status=1 | 上下架（1 发布 / 0 下架） | 教师本人 |
+| GET | /admin/courses/mine | 我的课程（含未发布） | 教师 |
+
+### 卡片 JSON（前端展示用）
+
+```json
+{
+  "id": 1,
+  "name": "Spring Cloud 微服务实战",
+  "cover": "https://example.com/covers/sc.jpg",
+  "intro": "从入门到实战：注册中心、网关、配置中心与登录鉴权全流程。",
+  "category": "微服务",
+  "price": 99.90,
+  "teacherId": 5,
+  "teacherName": "李老师",
+  "status": 1,
+  "totalCount": 12,
+  "createTime": "2026-08-26 19:02:17"
+}
+```
+
+> `totalCount` 为选课人数（实时统计选课中记录，不依赖冗余字段）；`teacherName` 为建课时从 lms-user 经 Feign 获取的快照。选课/建课权限经网关 JWT 校验 + 服务内 UserContext 身份判断（教师 2 / 学生 1）双重保障。
 
 ## 配置说明
 
