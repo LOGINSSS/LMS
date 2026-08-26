@@ -1,0 +1,38 @@
+# ============================================================
+# lms-gateway 网关配置（端口/路由/鉴权白名单）
+# ============================================================
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        # 认证服务：登录/注册放行，其余经网关 JWT 校验
+        - id: lms-auth
+          uri: lb://lms-auth
+          predicates:
+            - Path=/auth/**
+        # 用户服务：档案查询/管理端（需登录）
+        - id: lms-user
+          uri: lb://lms-user
+          predicates:
+            - Path=/users/**,/admin/users/**
+        # AI 服务
+        - id: lms-ai
+          uri: lb://lms-ai
+          predicates:
+            - Path=/ai/**
+
+lms:
+  gateway:
+    # 免登录白名单（ant 风格路径）
+    whitelist:
+      - /auth/login
+      - /auth/register
+      - /doc.html
+      - /webjars/**
+      - /v3/api-docs/**
+      - /swagger-ui/**
+      - /favicon.ico
+      - /actuator/**

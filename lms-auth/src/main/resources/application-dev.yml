@@ -1,0 +1,3 @@
+logging:
+  level:
+    com.lms.auth: debug   # 开发环境：lms-auth 包日志级别调为 debug，便于本地排查

@@ -1,0 +1,30 @@
+# ============================================================
+# lms-user 用户服务配置（学生/教师档案）
+# ============================================================
+server:
+  port: 8086
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_user?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    # 练手阶段打印 SQL，生产关闭
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: user
+      packages-to-scan: com.lms.user.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：解析网关透传的 user-info 头到 UserContext
+    user-header-enabled: true

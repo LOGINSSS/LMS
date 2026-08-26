@@ -16,10 +16,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
 
 /**
- * MVC 自动配置：全局异常处理 + Jackson 时间格式统一
+ * MVC 自动配置：全局异常处理 + Jackson 时间格式统一 + 用户头拦截器（按配置开关）
  */
 @AutoConfiguration
-@Import(CommonExceptionAdvice.class)
+@Import({CommonExceptionAdvice.class, UserInfoInterceptorConfiguration.class})
 public class MvcAutoConfiguration {
 
     @Bean

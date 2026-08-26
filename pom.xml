@@ -23,6 +23,8 @@
     <modules>
         <module>lms-common</module>
         <module>lms-gateway</module>
+        <module>lms-auth</module>
+        <module>lms-user</module>
         <module>lms-ai</module>
     </modules>
 

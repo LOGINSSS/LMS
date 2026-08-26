@@ -1,0 +1,24 @@
+# ============================================================
+# 共享配置：所有接入登录的服务（网关/认证/业务）共同引用
+# 引用方式：spring.config.import: optional:nacos:lms-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+# ============================================================
+
+# Redis（认证会话/黑名单、业务缓存）
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
+
+# JWT 与用户透传约定（认证服务签发 / 网关校验共用同一密钥）
+lms:
+  jwt:
+    # HS256 签名密钥，至少 32 字符；生产环境务必替换并走密钥管理
+    secret: lms-dev-secret-please-change-in-prod-0123456789
+    # token 有效期（秒）：24 小时
+    ttl: 86400
+  auth:
+    # 网关校验通过后透传给下游服务的用户信息头
+    user-header: user-info

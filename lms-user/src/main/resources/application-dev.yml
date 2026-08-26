@@ -1,0 +1,4 @@
+# 开发环境配置
+logging:
+  level:
+    com.lms.user: debug  # 本服务日志级别：开发环境开 debug 便于本地排查

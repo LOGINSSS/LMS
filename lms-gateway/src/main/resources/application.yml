@@ -1,40 +1,25 @@
+# 网关基础配置：服务名 + Nacos 地址 + 配置中心导入
+# 端口/路由/白名单在 Nacos lms-gateway.yaml；JWT 密钥/Redis 在 Nacos 共享 lms-common.yaml
 server:
   port: 8080
 
 spring:
   application:
     name: lms-gateway
-  # 从 Nacos 配置中心拉取配置（optional：Nacos 中暂无配置时不影响启动，本地配置兜底）
   config:
-    import: optional:nacos:lms-gateway.yaml?group=DEFAULT_GROUP
+    import:
+      - "optional:nacos:lms-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true"
+      - "optional:nacos:lms-gateway.yaml?group=DEFAULT_GROUP&refreshEnabled=true"
   cloud:
     nacos:
-      discovery:
-        server-addr: ${NACOS_ADDR:localhost:8848}
-      config:
-        server-addr: ${NACOS_ADDR:localhost:8848}
-        file-extension: yaml
-        group: DEFAULT_GROUP
+      server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
-      # 路由规则：后续每设计一个业务模块，在这里加一条 lb:// 路由
-      routes:
-        # AI 能力服务
-        - id: lms-ai
-          uri: lb://lms-ai
-          predicates:
-            - Path=/ai/**
-        # 示例（lms-user 模块尚未创建，先注释）：
-        # - id: lms-user
-        #   uri: lb://lms-user
-        #   predicates:
-        #     - Path=/user/**
-        #   filters:
-        #     - StripPrefix=1
       discovery:
         locator:
-          enabled: true           # 开启服务自动发现路由：/{serviceId}/** 可直接访问
+          enabled: true           # 开发便利：/{serviceId}/** 自动路由直达（生产应关闭）
           lower-case-service-id: true
 
 logging:
   level:
     org.springframework.cloud.gateway: info
+    com.lms.gateway.filter: debug

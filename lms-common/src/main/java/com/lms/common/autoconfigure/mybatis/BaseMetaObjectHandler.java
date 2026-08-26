@@ -6,8 +6,11 @@ import org.apache.ibatis.reflection.MetaObject;
 import java.time.LocalDateTime;
 
 /**
- * MyBatis-Plus 字段自动填充：create_time / update_time / deleted
- * <p>配合 PO 继承 BaseEntity（@TableField(fill = ...)）
+ * MyBatis-Plus 字段自动填充处理器
+ *
+ * 用途：配合 PO 继承 BaseEntity（@TableField(fill = ...)），
+ * 插入时自动填充 create_time / update_time / deleted=0，更新时自动刷新 update_time，
+ * 业务代码无需手动维护这三个审计字段。
  */
 public class BaseMetaObjectHandler implements MetaObjectHandler {
 

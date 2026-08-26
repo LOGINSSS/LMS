@@ -15,7 +15,8 @@ import java.util.stream.Collectors;
 
 /**
  * LLM 对话服务：最小集成示例（AgentScope Java v2 + OpenAI 兼容接口 → DashScope）
- * <p>模型 Bean 由 agentscope-openai-spring-boot-starter 自动配置注入（配置见 application.yml agentscope.openai.*）
+ *
+ * 模型 Bean 由 agentscope-openai-spring-boot-starter 自动配置注入（配置见 application.yml agentscope.openai.*）
  */
 @Service
 @RequiredArgsConstructor

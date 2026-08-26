@@ -24,6 +24,17 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
         </dependency>
+        <!-- WebMvc（用户头拦截器 HandlerInterceptor / WebMvcConfigurer） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+        <!-- Servlet API（UserInfoInterceptor 编译需要；provided：运行期由各服务的 Web 容器提供） -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- Jackson 时间序列化 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
