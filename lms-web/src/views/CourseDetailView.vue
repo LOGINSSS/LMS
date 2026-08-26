@@ -1,7 +1,8 @@
 <script setup>
 // 课程详情页：展示课程信息；学生可选课/退课，教师可上下架
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import gsap from 'gsap'
 import { getCourseDetail, enrollCourse, quitCourse, changeCourseStatus } from '../api/course'
 import { isTeacher, isStudent } from '../utils/auth'
 
@@ -11,9 +12,20 @@ const router = useRouter()
 const course = ref(null)
 const errorMsg = ref('')
 
+// 详情面板容器：加载完成后播放入场动画
+const panelEl = ref(null)
+let gsapCtx = null
+
 const load = async () => {
   try {
     course.value = await getCourseDetail(route.params.id)
+    // 详情入场：面板从下方淡入
+    await nextTick()
+    gsapCtx = gsap.context(() => {
+      gsap.fromTo(panelEl.value,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' })
+    }, panelEl.value)
   } catch (e) {
     errorMsg.value = e.message
   }
@@ -48,12 +60,17 @@ const onToggleStatus = async () => {
 }
 
 onMounted(load)
+
+// 组件卸载时还原动画，避免幽灵动画
+onUnmounted(() => {
+  if (gsapCtx) gsapCtx.revert()
+})
 </script>
 
 <template>
   <div v-if="errorMsg" class="empty-tip">{{ errorMsg }}</div>
-  <div v-else-if="course" class="detail-panel">
-    <button class="btn back-btn" @click="router.push('/courses')">返回列表</button>
+  <div v-else-if="course" ref="panelEl" class="detail-panel">
+    <button v-btn-fx class="btn back-btn" @click="router.push('/courses')">返回列表</button>
     <div class="cover">
       <img v-if="course.cover" :src="course.cover" alt="课程封面" />
       <span v-else>暂无封面</span>
@@ -70,9 +87,9 @@ onMounted(load)
     </div>
     <p class="intro">{{ course.intro || '暂无简介' }}</p>
     <div class="ops">
-      <button v-if="isStudent()" class="btn btn-primary" @click="onEnroll">选课</button>
-      <button v-if="isStudent()" class="btn btn-danger" @click="onQuit">退课</button>
-      <button v-if="isTeacher()" class="btn" @click="onToggleStatus">
+      <button v-btn-fx v-if="isStudent()" class="btn btn-primary" @click="onEnroll">选课</button>
+      <button v-btn-fx v-if="isStudent()" class="btn btn-danger" @click="onQuit">退课</button>
+      <button v-btn-fx v-if="isTeacher()" class="btn" @click="onToggleStatus">
         {{ course.status === 1 ? '下架' : '发布' }}
       </button>
     </div>

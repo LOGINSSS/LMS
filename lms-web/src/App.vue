@@ -36,17 +36,40 @@ const handleLogout = async () => {
         </nav>
         <div class="user-area">
           <span class="role-tag">{{ roleLabel() }}</span>
-          <button class="btn" @click="handleLogout">退出登录</button>
+          <button v-btn-fx class="btn" @click="handleLogout">退出登录</button>
         </div>
       </div>
     </header>
     <main class="container">
-      <router-view />
+      <!-- 页面切换过渡：淡入 + 轻微上移（CSS 实现，保持轻量） -->
+      <router-view v-slot="{ Component }">
+        <transition name="page" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </main>
   </div>
 </template>
 
 <style scoped>
+/* 页面切换过渡：只动 opacity/transform */
+.page-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.page-leave-to {
+  opacity: 0;
+}
+
 .topbar {
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);

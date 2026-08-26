@@ -1,9 +1,10 @@
 <script setup>
 // 课程列表页：卡片分页展示已发布课程；教师可建课/上下架，学生可选课
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { queryCoursePage, enrollCourse, addCourse, changeCourseStatus } from '../api/course'
 import { isTeacher, isStudent } from '../utils/auth'
+import { useEntrance } from '../composables/useEntrance'
 import CourseCard from '../components/CourseCard.vue'
 import Pagination from '../components/Pagination.vue'
 
@@ -19,7 +20,11 @@ const loading = ref(false)
 const showAddForm = ref(false)
 const courseForm = reactive({ name: '', cover: '', intro: '', category: '', price: 0 })
 
-const load = async () => {
+// 卡片网格容器：数据加载完成后播放入场动画
+const gridEl = ref(null)
+const { play: playEntrance } = useEntrance(gridEl)
+
+const load = async (withEntrance = true) => {
   loading.value = true
   try {
     const data = await queryCoursePage({
@@ -30,6 +35,11 @@ const load = async () => {
     })
     total.value = data.total
     list.value = data.list
+    // 等 DOM 渲染完再播放入场（翻页/筛选也重播）
+    if (withEntrance) {
+      await nextTick()
+      playEntrance()
+    }
   } catch (e) {
     alert(e.message)
   } finally {
@@ -91,6 +101,8 @@ const onSubmitCourse = async () => {
     alert(e.message)
   }
 }
+
+onMounted(() => load())
 </script>
 
 <template>
@@ -106,9 +118,9 @@ const onSubmitCourse = async () => {
           <option value="AI">AI</option>
         </select>
         <input v-model="query.keyword" placeholder="搜索课程名称/简介" @keyup.enter="onSearch" />
-        <button class="btn btn-primary" @click="onSearch">搜索</button>
+        <button v-btn-fx class="btn btn-primary" @click="onSearch">搜索</button>
       </div>
-      <button v-if="isTeacher()" class="btn btn-primary" @click="showAddForm = !showAddForm">
+      <button v-btn-fx v-if="isTeacher()" class="btn btn-primary" @click="showAddForm = !showAddForm">
         {{ showAddForm ? '收起' : '新建课程' }}
       </button>
     </div>
@@ -137,18 +149,18 @@ const onSubmitCourse = async () => {
           <input v-model="courseForm.price" type="number" min="0" />
         </div>
       </div>
-      <button class="btn btn-primary" @click="onSubmitCourse">创建课程</button>
+      <button v-btn-fx class="btn btn-primary" @click="onSubmitCourse">创建课程</button>
     </div>
 
     <!-- 卡片网格 -->
     <div v-if="loading" class="empty-tip">加载中...</div>
     <div v-else-if="list.length === 0" class="empty-tip">暂无课程</div>
-    <div v-else class="card-grid">
+    <div v-else ref="gridEl" class="card-grid">
       <div v-for="course in list" :key="course.id">
         <CourseCard :course="course">
-          <button class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
-          <button v-if="isStudent()" class="btn btn-primary" @click="onEnroll(course)">选课</button>
-          <button v-if="isTeacher()" class="btn" @click="onToggleStatus(course)">
+          <button v-btn-fx class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
+          <button v-btn-fx v-if="isStudent()" class="btn btn-primary" @click="onEnroll(course)">选课</button>
+          <button v-btn-fx v-if="isTeacher()" class="btn" @click="onToggleStatus(course)">
             {{ course.status === 1 ? '下架' : '发布' }}
           </button>
         </CourseCard>

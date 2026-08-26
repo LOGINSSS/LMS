@@ -1,7 +1,8 @@
 <script setup>
 // 注册页：选择学生/教师身份注册，成功后跳登录页
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import gsap from 'gsap'
 import { register } from '../api/auth'
 
 const router = useRouter()
@@ -16,6 +17,22 @@ const form = reactive({
 })
 const errorMsg = ref('')
 const loading = ref(false)
+
+// 注册面板容器：入场动画（上浮淡入）
+const panelEl = ref(null)
+let gsapCtx = null
+
+onMounted(() => {
+  gsapCtx = gsap.context(() => {
+    gsap.fromTo(panelEl.value,
+      { y: 24, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' })
+  }, panelEl.value)
+})
+
+onUnmounted(() => {
+  if (gsapCtx) gsapCtx.revert()
+})
 
 const onSubmit = async () => {
   errorMsg.value = ''
@@ -48,7 +65,7 @@ const onSubmit = async () => {
 
 <template>
   <div class="auth-page">
-    <div class="auth-panel">
+    <div ref="panelEl" class="auth-panel">
       <h2>注册</h2>
       <div class="form-item">
         <label>身份</label>
@@ -78,7 +95,7 @@ const onSubmit = async () => {
         <input v-model="form.phone" placeholder="11 位手机号" />
       </div>
       <p v-if="errorMsg" class="tip-error">{{ errorMsg }}</p>
-      <button class="btn btn-primary auth-btn" :disabled="loading" @click="onSubmit">
+      <button v-btn-fx class="btn btn-primary auth-btn" :disabled="loading" @click="onSubmit">
         {{ loading ? '注册中...' : '注册' }}
       </button>
       <p class="auth-link">已有账号？<router-link to="/login">去登录</router-link></p>

@@ -1,9 +1,10 @@
 <script setup>
 // 我的课程页：学生看选过的课，教师看自己创建的课（含未发布，可上下架）
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { queryEnrolledCourses, queryMyCourses, changeCourseStatus } from '../api/course'
 import { isTeacher } from '../utils/auth'
+import { useEntrance } from '../composables/useEntrance'
 import CourseCard from '../components/CourseCard.vue'
 import Pagination from '../components/Pagination.vue'
 
@@ -14,6 +15,10 @@ const total = ref(0)
 const list = ref([])
 const loading = ref(false)
 
+// 卡片网格容器：数据加载完成后播放入场动画
+const gridEl = ref(null)
+const { play: playEntrance } = useEntrance(gridEl)
+
 const load = async () => {
   loading.value = true
   try {
@@ -22,6 +27,8 @@ const load = async () => {
     const data = await api({ pageNo: query.pageNo, pageSize: query.pageSize })
     total.value = data.total
     list.value = data.list
+    await nextTick()
+    playEntrance()
   } catch (e) {
     alert(e.message)
   } finally {
@@ -53,11 +60,11 @@ onMounted(load)
     <h2 class="page-title">{{ isTeacher() ? '我创建的课程' : '我选过的课程' }}</h2>
     <div v-if="loading" class="empty-tip">加载中...</div>
     <div v-else-if="list.length === 0" class="empty-tip">暂无课程</div>
-    <div v-else class="card-grid">
+    <div v-else ref="gridEl" class="card-grid">
       <div v-for="course in list" :key="course.id">
         <CourseCard :course="course">
-          <button class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
-          <button v-if="isTeacher()" class="btn" @click="onToggleStatus(course)">
+          <button v-btn-fx class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
+          <button v-btn-fx v-if="isTeacher()" class="btn" @click="onToggleStatus(course)">
             {{ course.status === 1 ? '下架' : '发布' }}
           </button>
         </CourseCard>
