@@ -37,6 +37,16 @@ spring:
           uri: lb://lms-course
           predicates:
             - Path=/courses/**,/admin/courses/**
+        # 媒资服务：文件/视频上传与管理（需登录；静态访问 /uploads/** 直连 8088）
+        - id: lms-media
+          uri: lb://lms-media
+          predicates:
+            - Path=/medias/**
+        # 评价互动服务：点赞（需登录）
+        - id: lms-remark
+          uri: lb://lms-remark
+          predicates:
+            - Path=/likes/**
         # AI 服务
         - id: lms-ai
           uri: lb://lms-ai

@@ -17,6 +17,8 @@ $files = @(
     "lms-auth.yaml",
     "lms-user.yaml",
     "lms-course.yaml",
+    "lms-media.yaml",
+    "lms-remark.yaml",
     "lms-gateway.yaml"
 )
 

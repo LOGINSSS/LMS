@@ -1,0 +1,29 @@
+# ============================================================
+# lms-remark 评价互动服务配置（点赞记录等）
+# ============================================================
+server:
+  port: 8090
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_remark?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: remark
+      packages-to-scan: com.lms.remark.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：识别点赞人（UserContext）
+    user-header-enabled: true

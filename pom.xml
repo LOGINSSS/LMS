@@ -26,6 +26,8 @@
         <module>lms-auth</module>
         <module>lms-user</module>
         <module>lms-course</module>
+        <module>lms-media</module>
+        <module>lms-remark</module>
         <module>lms-ai</module>
     </modules>
 

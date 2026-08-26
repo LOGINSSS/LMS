@@ -1,0 +1,38 @@
+# ============================================================
+# lms-media 媒资服务配置（文件/视频上传与管理）
+# ============================================================
+server:
+  port: 8088
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_media?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  servlet:
+    multipart:
+      max-file-size: 100MB        # 视频上传允许 100MB
+      max-request-size: 110MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: media
+      packages-to-scan: com.lms.media.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：识别上传者（UserContext）
+    user-header-enabled: true
+  media:
+    # 本地存储目录（练手；生产可换 OSS，见 FileStorageService 抽象）
+    upload-dir: D:/ASTUDY/TheRoadOfGold/project/LMS/uploads
+    # 静态访问 URL 前缀（浏览器媒体标签直连本服务，不受 CORS 限制）
+    url-prefix: http://localhost:8088
