@@ -18,6 +18,7 @@ target/
 Thumbs.db
 logs/
 *.log
+*.err
 
 # ===== 本地环境配置 =====
 application-local.yml
