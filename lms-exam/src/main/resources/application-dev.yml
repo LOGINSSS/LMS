@@ -1,0 +1,4 @@
+# 开发环境：打印题库服务日志，便于本地联调
+logging:
+  level:
+    com.lms.exam: debug

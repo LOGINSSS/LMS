@@ -28,6 +28,8 @@
         <module>lms-course</module>
         <module>lms-media</module>
         <module>lms-remark</module>
+        <module>lms-search</module>
+        <module>lms-exam</module>
         <module>lms-ai</module>
     </modules>
 

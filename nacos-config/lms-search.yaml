@@ -1,0 +1,32 @@
+# ============================================================
+# lms-search 搜索服务配置（ES 课程搜索/推荐/兴趣标签）
+# ============================================================
+server:
+  port: 8091
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_search?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  elasticsearch:
+    # 本地 Docker ES 8（单节点，已关安全认证）
+    uris: http://localhost:9200
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: search
+      packages-to-scan: com.lms.search.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：兴趣标签按当前用户归属
+    user-header-enabled: true

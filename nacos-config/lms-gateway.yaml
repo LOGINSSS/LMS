@@ -47,6 +47,16 @@ spring:
           uri: lb://lms-remark
           predicates:
             - Path=/likes/**
+        # 搜索服务：ES 课程搜索/推荐/兴趣标签（需登录）
+        - id: lms-search
+          uri: lb://lms-search
+          predicates:
+            - Path=/search/**,/interests/**
+        # 考试题库服务：题目管理（教师）/按业务取题（需登录）
+        - id: lms-exam
+          uri: lb://lms-exam
+          predicates:
+            - Path=/admin/questions/**,/questions/**
         # AI 服务
         - id: lms-ai
           uri: lb://lms-ai

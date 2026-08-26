@@ -1,0 +1,29 @@
+# ============================================================
+# lms-exam 考试/题库服务配置（题目管理/题库业务）
+# ============================================================
+server:
+  port: 8092
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_exam?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: exam
+      packages-to-scan: com.lms.exam.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：识别建题教师（UserContext）
+    user-header-enabled: true
