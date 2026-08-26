@@ -1,0 +1,11 @@
+# 前端依赖与构建产物
+node_modules/
+dist/
+*.local
+
+# npm 本地缓存（沙箱环境避免写用户目录）
+.npm-cache/
+
+# 日志
+*.log
+npm-debug.log*

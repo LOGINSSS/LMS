@@ -7,6 +7,20 @@ server:
 spring:
   cloud:
     gateway:
+      # 跨域：允许前端开发服务器直连网关（生产改为同域反代）
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:5173"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
       routes:
         # 认证服务：登录/注册放行，其余经网关 JWT 校验
         - id: lms-auth

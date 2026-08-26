@@ -34,6 +34,7 @@ LMS/
 ├── lms-user/                # 用户服务：学生/教师档案、管理端分页（库 lms_user）
 ├── lms-course/              # 课程服务：课程卡片展示、教师建课/管理、学生选课（库 lms_course）
 ├── lms-ai/                  # AI 能力服务：AgentScope Java + DashScope（LLM 接入）
+├── lms-web/                 # 前端（Vue3 + Vite + vue-router + axios）：登录/注册/课程卡片分页/详情/我的课程
 └── ...业务模块（lms-order / ...）后续逐模块添加
 ```
 
@@ -179,6 +180,39 @@ curl localhost:8080/users/me -H "Authorization: Bearer <token>"
 ```
 
 > `totalCount` 为选课人数（实时统计选课中记录，不依赖冗余字段）；`teacherName` 为建课时从 lms-user 经 Feign 获取的快照。选课/建课权限经网关 JWT 校验 + 服务内 UserContext 身份判断（教师 2 / 学生 1）双重保障。
+
+## 前端（lms-web）
+
+Vue3 + Vite + vue-router + axios，页面规范见前端技能包 `vue-frontend-structure`（本机技能库）。
+
+### 页面路由（多地址）
+
+| 路径 | 页面 | 说明 |
+|---|---|---|
+| /login | 登录页 | 登录成功按 userType 分流 |
+| /register | 注册页 | 选择学生/教师身份注册 |
+| /courses | 课程列表 | 卡片分页（分类/关键字筛选）；教师可建课/上下架，学生可选课 |
+| /courses/:id | 课程详情 | 学生选课/退课，教师上下架 |
+| /my | 我的课程 | 学生看选过的课，教师看自己创建的课 |
+| / 与 404 | 重定向 | 兜底回 /courses |
+
+### 启动
+
+```bash
+cd lms-web
+npm install          # 首次（沙箱环境加 --cache 到项目内）
+npm run dev          # http://localhost:5173
+```
+
+### 前后端联通方式
+
+- 开发环境：前端**直连网关**（`VITE_API_BASE=http://localhost:8080`，见 `.env.development`），跨域由网关 `globalcors` 放行（含 OPTIONS 预检）；未登录自动跳 /login?redirect=。
+- 不使用 Vite `/api` 代理：Node http-proxy 与网关(WebFlux)在 `Connection: close` 响应上解析不兼容（POST 间歇 500），直连可稳定规避（见 vite.config.js 注释）。
+- 生产环境：前端构建产物由同域反代部署，`VITE_API_BASE` 指向网关域名。
+
+### 分页
+
+列表统一使用 `src/components/Pagination.vue`，对接后端 `PageDTO{total,list}`。
 
 ## 配置说明
 
