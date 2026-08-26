@@ -1,0 +1,29 @@
+# ============================================================
+# lms-learning 学习过程服务配置（课次/学习记录/笔记/问答/积分/签到）
+# ============================================================
+server:
+  port: 8093
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_learning?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: learning
+      packages-to-scan: com.lms.learning.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：学习/笔记/问答/签到/积分按当前用户归属
+    user-header-enabled: true

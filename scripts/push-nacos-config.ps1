@@ -21,6 +21,7 @@ $files = @(
     "lms-remark.yaml",
     "lms-search.yaml",
     "lms-exam.yaml",
+    "lms-learning.yaml",
     "lms-gateway.yaml"
 )
 

@@ -57,6 +57,12 @@ spring:
           uri: lb://lms-exam
           predicates:
             - Path=/admin/questions/**,/questions/**
+        # 学习过程服务：课次/学习记录/笔记/问答/签到/积分（需登录；
+        # 问答用 /qa/** 前缀规避 exam 的 /questions/**）
+        - id: lms-learning
+          uri: lb://lms-learning
+          predicates:
+            - Path=/lessons/**,/admin/lessons/**,/learn/**,/notes/**,/qa/**,/sign-in,/points/**
         # AI 服务
         - id: lms-ai
           uri: lb://lms-ai

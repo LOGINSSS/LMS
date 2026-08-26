@@ -1,0 +1,4 @@
+# 开发环境：打印学习服务日志，便于本地联调
+logging:
+  level:
+    com.lms.learning: debug

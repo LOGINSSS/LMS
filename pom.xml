@@ -30,6 +30,7 @@
         <module>lms-remark</module>
         <module>lms-search</module>
         <module>lms-exam</module>
+        <module>lms-learning</module>
         <module>lms-ai</module>
     </modules>
 
