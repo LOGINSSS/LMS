@@ -6,8 +6,6 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-import java.math.BigDecimal;
-
 /**
  * 课程索引文档（ES 索引 course）
  *
@@ -36,9 +34,6 @@ public class CourseDoc {
 
     /** 教师昵称快照 */
     private String teacherName;
-
-    /** 价格（元） */
-    private BigDecimal price;
 
     /** 封面图 URL */
     private String cover;

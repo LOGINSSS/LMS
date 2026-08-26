@@ -9,6 +9,11 @@ const routes = [
   { path: '/courses', name: 'courses', component: () => import('../views/CourseListView.vue') },
   { path: '/courses/:id', name: 'course-detail', component: () => import('../views/CourseDetailView.vue'), props: true },
   { path: '/my', name: 'my', component: () => import('../views/MyCoursesView.vue') },
+  { path: '/search', name: 'search', component: () => import('../views/SearchView.vue') },
+  { path: '/medias', name: 'medias', component: () => import('../views/MediaView.vue') },
+  { path: '/dashboard', name: 'dashboard', component: () => import('../views/DashboardView.vue') },
+  { path: '/learn', name: 'learn', component: () => import('../views/LearnView.vue') },
+  { path: '/admin/questions', name: 'admin-questions', component: () => import('../views/QuestionManageView.vue') },
   // 未匹配地址兜底回课程列表
   { path: '/:pathMatch(.*)*', redirect: '/courses' }
 ]

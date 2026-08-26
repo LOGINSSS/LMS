@@ -7,8 +7,6 @@ import com.lms.common.domain.po.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.math.BigDecimal;
-
 /**
  * 课程实体
  *
@@ -42,8 +40,6 @@ public class Course extends BaseEntity {
     /** 课程分类（如 微服务/前端/数据库） */
     private String category;
 
-    /** 价格（单位：元），0 表示免费 */
-    private BigDecimal price;
 
     /** 状态：0 已下架 / 1 已发布，取值见 CourseStatus 枚举 */
     private Integer status;

@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS `course` (
     `cover`       VARCHAR(255)  DEFAULT NULL COMMENT '封面图 URL',
     `intro`       VARCHAR(500)  DEFAULT NULL COMMENT '课程简介（卡片展示用）',
     `category`    VARCHAR(50)   DEFAULT NULL COMMENT '课程分类（如 微服务/前端/数据库）',
-    `price`       DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '价格（元），0 表示免费',
     `status`      TINYINT       NOT NULL DEFAULT 0 COMMENT '状态：0 已下架 / 1 已发布（卡片列表只展示已发布）',
     `create_time` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

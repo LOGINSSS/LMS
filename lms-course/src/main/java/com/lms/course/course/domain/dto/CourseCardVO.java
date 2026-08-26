@@ -3,14 +3,13 @@ package com.lms.course.course.domain.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
  * 课程卡片出参（前端卡片展示专用 JSON）
  *
  * 使用场景：课程列表分页、课程详情、我的课程、我选过的课共用此结构，
- * 字段即前端卡片所需（封面/标题/简介/分类/价格/教师/选课人数/时间）。
+ * 字段即前端卡片所需（封面/标题/简介/分类/教师/选课人数/时间）。
  */
 @Data
 @Schema(description = "课程卡片")
@@ -30,9 +29,6 @@ public class CourseCardVO {
 
     /** 课程分类 */
     private String category;
-
-    /** 价格（单位：元），0 表示免费 */
-    private BigDecimal price;
 
     /** 归属教师 id */
     private Long teacherId;

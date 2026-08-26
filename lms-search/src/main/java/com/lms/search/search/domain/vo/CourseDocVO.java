@@ -3,7 +3,6 @@ package com.lms.search.search.domain.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -29,9 +28,6 @@ public class CourseDocVO {
 
     /** 课程分类 */
     private String category;
-
-    /** 价格（元） */
-    private BigDecimal price;
 
     /** 教师昵称 */
     private String teacherName;

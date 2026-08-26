@@ -1,12 +1,9 @@
 package com.lms.course.course.domain.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-
-import java.math.BigDecimal;
 
 /**
  * 课程表单入参（教师添加/修改课程共用）
@@ -34,8 +31,4 @@ public class CourseFormDTO {
     /** 课程分类（如 微服务/前端/数据库） */
     @Size(max = 50, message = "分类不能超过50字")
     private String category;
-
-    /** 价格（单位：元），0 表示免费，不能为负 */
-    @DecimalMin(value = "0", message = "价格不能为负")
-    private BigDecimal price;
 }

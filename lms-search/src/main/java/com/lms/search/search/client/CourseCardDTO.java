@@ -3,7 +3,6 @@ package com.lms.search.search.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -30,9 +29,6 @@ public class CourseCardDTO {
 
     /** 课程分类（筛选/推荐字段） */
     private String category;
-
-    /** 价格（元） */
-    private BigDecimal price;
 
     /** 教师昵称快照 */
     private String teacherName;

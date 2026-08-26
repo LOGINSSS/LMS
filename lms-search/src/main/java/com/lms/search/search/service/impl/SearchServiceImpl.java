@@ -208,7 +208,6 @@ public class SearchServiceImpl implements ISearchService {
         doc.setIntro(dto.getIntro());
         doc.setCategory(dto.getCategory());
         doc.setTeacherName(dto.getTeacherName());
-        doc.setPrice(dto.getPrice());
         doc.setCover(dto.getCover());
         return doc;
     }

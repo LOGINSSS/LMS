@@ -1,11 +1,8 @@
 <script setup>
-// 课程卡片组件：纯展示（封面/标题/简介/分类/价格/教师/选课人数/时间），操作按钮由页面提供
+// 课程卡片组件：纯展示（封面/标题/简介/分类/教师/选课人数/时间），操作按钮由页面提供
 defineProps({
   course: { type: Object, required: true }
 })
-
-// 价格展示：0 显示免费
-const priceText = (price) => (Number(price) > 0 ? `¥${Number(price).toFixed(2)}` : '免费')
 </script>
 
 <template>
@@ -19,7 +16,6 @@ const priceText = (price) => (Number(price) > 0 ? `¥${Number(price).toFixed(2)}
       <p class="intro">{{ course.intro || '暂无简介' }}</p>
       <div class="meta">
         <span v-if="course.category" class="tag">{{ course.category }}</span>
-        <span class="price" :class="{ free: Number(course.price) === 0 }">{{ priceText(course.price) }}</span>
       </div>
       <div class="footer">
         <span class="teacher">{{ course.teacherName }}</span>

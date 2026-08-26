@@ -18,7 +18,7 @@ const loading = ref(false)
 
 // 教师建课表单
 const showAddForm = ref(false)
-const courseForm = reactive({ name: '', cover: '', intro: '', category: '', price: 0 })
+const courseForm = reactive({ name: '', cover: '', intro: '', category: '' })
 
 // 卡片网格容器：数据加载完成后播放入场动画
 const gridEl = ref(null)
@@ -91,11 +91,10 @@ const onSubmitCourse = async () => {
       name: courseForm.name,
       cover: courseForm.cover,
       intro: courseForm.intro,
-      category: courseForm.category,
-      price: Number(courseForm.price) || 0
+      category: courseForm.category
     })
     alert('创建成功，默认下架，请发布后学生可见')
-    Object.assign(courseForm, { name: '', cover: '', intro: '', category: '', price: 0 })
+    Object.assign(courseForm, { name: '', cover: '', intro: '', category: '' })
     showAddForm.value = false
   } catch (e) {
     alert(e.message)
@@ -139,15 +138,9 @@ onMounted(() => load())
         <label>课程简介</label>
         <textarea v-model="courseForm.intro" rows="2" placeholder="可选"></textarea>
       </div>
-      <div class="form-row">
-        <div class="form-item">
-          <label>分类</label>
-          <input v-model="courseForm.category" placeholder="如 微服务" />
-        </div>
-        <div class="form-item">
-          <label>价格（元，0 免费）</label>
-          <input v-model="courseForm.price" type="number" min="0" />
-        </div>
+      <div class="form-item">
+        <label>分类</label>
+        <input v-model="courseForm.category" placeholder="如 微服务" />
       </div>
       <button v-btn-fx class="btn btn-primary" @click="onSubmitCourse">创建课程</button>
     </div>

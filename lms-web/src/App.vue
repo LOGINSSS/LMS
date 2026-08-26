@@ -31,8 +31,13 @@ const handleLogout = async () => {
       <div class="container topbar-inner">
         <router-link to="/courses" class="brand">LMS 在线学习平台</router-link>
         <nav class="nav">
-          <router-link to="/courses">课程列表</router-link>
+          <router-link to="/courses">课程</router-link>
+          <router-link to="/search">搜索推荐</router-link>
           <router-link to="/my">我的课程</router-link>
+          <router-link to="/learn">学习中心</router-link>
+          <router-link to="/medias">媒资</router-link>
+          <router-link v-if="isTeacher()" to="/admin/questions">题库</router-link>
+          <router-link to="/dashboard">数据看板</router-link>
         </nav>
         <div class="user-area">
           <span class="role-tag">{{ roleLabel() }}</span>
