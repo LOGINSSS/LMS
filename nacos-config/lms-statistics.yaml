@@ -1,0 +1,29 @@
+# ============================================================
+# lms-statistics 数据中心服务配置（数据看板/今日数据/Top10）
+# ============================================================
+server:
+  port: 8094
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_statistics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: statistics
+      packages-to-scan: com.lms.statistics.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：看板接口按登录用户鉴权
+    user-header-enabled: true

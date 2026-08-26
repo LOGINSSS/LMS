@@ -26,11 +26,13 @@ import com.lms.course.course.enums.EnrollmentStatus;
 import com.lms.course.course.mapper.CourseEnrollmentMapper;
 import com.lms.course.course.mapper.CourseMapper;
 import com.lms.course.course.service.ICourseService;
+import com.lms.course.course.domain.vo.CourseTopVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -153,16 +155,22 @@ public class CourseServiceImpl implements ICourseService {
         if (course.getStatus() == null || course.getStatus() != CourseStatus.PUBLISHED.getValue()) {
             throw new CommonException(CourseErrorInfo.COURSE_NOT_PUBLISHED);
         }
-        //3. 幂等预校验：已存在选课中记录则直接拒绝（友好提示）
+        //3. 幂等处理：查该课程下选课记录（任意状态）
+        //   选课中 → 报已选；已退课 → 复用记录翻回选课中（避免撞 uk_course_student 唯一键）
         //   注意：预校验存在并发窗口，最终兜底是 uk_course_student 唯一索引 + DuplicateKeyException
-        Long exists = enrollmentMapper.selectCount(new LambdaQueryWrapper<CourseEnrollment>()
+        CourseEnrollment existed = enrollmentMapper.selectOne(new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getCourseId, courseId)
-                .eq(CourseEnrollment::getStudentId, studentId)
-                .eq(CourseEnrollment::getStatus, EnrollmentStatus.ACTIVE.getValue()));
-        if (exists != null && exists > 0) {
-            throw new CommonException(CourseErrorInfo.ALREADY_ENROLLED);
+                .eq(CourseEnrollment::getStudentId, studentId));
+        if (existed != null) {
+            if (existed.getStatus() != null && existed.getStatus() == EnrollmentStatus.ACTIVE.getValue()) {
+                throw new CommonException(CourseErrorInfo.ALREADY_ENROLLED);
+            }
+            // 已退课记录恢复为选课中，保留原始建档时间
+            existed.setStatus(EnrollmentStatus.ACTIVE.getValue());
+            enrollmentMapper.updateById(existed);
+            return;
         }
-        //4. 落库选课记录：状态选课中
+        //4. 无历史记录：插入新选课记录（状态选课中）
         CourseEnrollment enrollment = new CourseEnrollment();
         enrollment.setCourseId(courseId);
         enrollment.setStudentId(studentId);
@@ -170,8 +178,14 @@ public class CourseServiceImpl implements ICourseService {
         try {
             enrollmentMapper.insert(enrollment);
         } catch (DuplicateKeyException e) {
-            // 【保障机制】并发兜底：唯一索引撞键说明已选过，转业务异常统一提示
-            throw new CommonException(CourseErrorInfo.ALREADY_ENROLLED);
+            // 【保障机制】并发兜底：撞唯一键说明记录已存在（退课态），重查并翻回选课中
+            CourseEnrollment again = enrollmentMapper.selectOne(new LambdaQueryWrapper<CourseEnrollment>()
+                    .eq(CourseEnrollment::getCourseId, courseId)
+                    .eq(CourseEnrollment::getStudentId, studentId));
+            if (again != null) {
+                again.setStatus(EnrollmentStatus.ACTIVE.getValue());
+                enrollmentMapper.updateById(again);
+            }
         }
     }
 
@@ -310,5 +324,48 @@ public class CourseServiceImpl implements ICourseService {
                 row -> ((Number) row.get("cnt")).longValue()));
         //3. 回填到卡片 VO（未选课课程默认 0）
         vos.forEach(vo -> vo.setTotalCount(countMap.getOrDefault(vo.getId(), 0L)));
+    }
+
+    @Override
+    public long countEnrollTotal() {
+        //1. 统计选课中记录总数（数据中心看板口径）
+        Long count = enrollmentMapper.selectCount(new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(CourseEnrollment::getStatus, EnrollmentStatus.ACTIVE.getValue()));
+        return count == null ? 0L : count;
+    }
+
+    @Override
+    public long countTodayCourses() {
+        //1. 统计今日新增课程：create_time 落在今日 0 点之后（含）
+        Long count = courseMapper.selectCount(new LambdaQueryWrapper<Course>()
+                .ge(Course::getCreateTime, LocalDate.now().atStartOfDay()));
+        return count == null ? 0L : count;
+    }
+
+    @Override
+    public List<CourseTopVO> topCourses(int size) {
+        //1. 按课程分组统计选课中人数，取 Top N
+        int safeSize = size < 1 ? 10 : Math.min(size, 50);
+        List<Map<String, Object>> rows = enrollmentMapper.selectMaps(new QueryWrapper<CourseEnrollment>()
+                .select("course_id", "count(*) as cnt")
+                .eq("status", EnrollmentStatus.ACTIVE.getValue())
+                .groupBy("course_id")
+                .orderByDesc("cnt")
+                .last("LIMIT " + safeSize));
+        if (CollUtils.isEmpty(rows)) {
+            return Collections.emptyList();
+        }
+        //2. 批量取课程名并组装热度榜
+        List<Long> courseIds = rows.stream()
+                .map(row -> ((Number) row.get("course_id")).longValue())
+                .collect(Collectors.toList());
+        Map<Long, String> nameMap = courseMapper.selectBatchIds(courseIds).stream()
+                .collect(Collectors.toMap(Course::getId, Course::getName));
+        return rows.stream()
+                .map(row -> {
+                    Long courseId = ((Number) row.get("course_id")).longValue();
+                    return new CourseTopVO(courseId, nameMap.get(courseId), ((Number) row.get("cnt")).longValue());
+                })
+                .collect(Collectors.toList());
     }
 }

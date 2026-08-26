@@ -70,4 +70,14 @@ public interface IUserService {
      * @return 分页结果（列表项 UserVO 仅含主表公共字段）
      */
     PageDTO<UserVO> queryUserPage(UserPageQuery query);
+
+    /**
+     * 今日新增用户数（数据中心看板用）
+     *
+     * 业务背景：统计口径为 user 主表 create_time 落在今日 0 点之后（含）的档案数，
+     * 供 lms-statistics 聚合"今日数据"。
+     *
+     * @return 今日新增用户数
+     */
+    long countTodayUsers();
 }

@@ -140,4 +140,25 @@ public interface ILearningService {
      * @return 榜单条目列表
      */
     List<PointsBoardVO> pointsBoard(int size);
+
+    /**
+     * 今日签到人数（数据中心看板用）
+     *
+     * @return 今日签到记录数
+     */
+    long countTodaySignIn();
+
+    /**
+     * 今日学习人次（数据中心看板用，统计口径为最近学习时间落在今日）
+     *
+     * @return 今日学习记录数
+     */
+    long countTodayLearn();
+
+    /**
+     * 学习人次累计（数据中心看板用）
+     *
+     * @return 学习记录总数
+     */
+    long countLearnTotal();
 }

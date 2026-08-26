@@ -5,11 +5,14 @@ import com.lms.common.domain.dto.PageDTO;
 import com.lms.course.course.domain.dto.CourseCardVO;
 import com.lms.course.course.domain.dto.CourseFormDTO;
 import com.lms.course.course.domain.query.CoursePageQuery;
+import com.lms.course.course.domain.vo.CourseTopVO;
 import com.lms.course.course.service.ICourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -60,5 +63,26 @@ public class AdminCourseController {
     @Operation(summary = "我的课程")
     public R<PageDTO<CourseCardVO>> queryMine(CoursePageQuery query) {
         return R.ok(courseService.queryMyCourses(query));
+    }
+
+    /** 选课人次（数据中心看板聚合用） */
+    @GetMapping("/stats/enroll-total")
+    @Operation(summary = "选课人次")
+    public R<Long> countEnrollTotal() {
+        return R.ok(courseService.countEnrollTotal());
+    }
+
+    /** 今日新增课程数（数据中心看板聚合用） */
+    @GetMapping("/stats/today")
+    @Operation(summary = "今日新增课程数")
+    public R<Long> countTodayCourses() {
+        return R.ok(courseService.countTodayCourses());
+    }
+
+    /** 热门课程 Top N（按选课人数，数据中心看板用） */
+    @GetMapping("/stats/top")
+    @Operation(summary = "热门课程 Top N")
+    public R<List<CourseTopVO>> topCourses(@RequestParam(value = "size", defaultValue = "10") Integer size) {
+        return R.ok(courseService.topCourses(size));
     }
 }

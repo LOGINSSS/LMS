@@ -353,4 +353,27 @@ public class LearningServiceImpl implements ILearningService {
         }
         return note;
     }
+
+    @Override
+    public long countTodaySignIn() {
+        //1. 统计今日签到记录数（数据中心看板口径）
+        Long count = signInMapper.selectCount(new LambdaQueryWrapper<SignIn>()
+                .eq(SignIn::getSignDate, LocalDate.now()));
+        return count == null ? 0L : count;
+    }
+
+    @Override
+    public long countTodayLearn() {
+        //1. 统计今日学习人次：最近学习时间落在今日 0 点之后（含）
+        Long count = recordMapper.selectCount(new LambdaQueryWrapper<LearningRecord>()
+                .ge(LearningRecord::getLastLearnTime, LocalDate.now().atStartOfDay()));
+        return count == null ? 0L : count;
+    }
+
+    @Override
+    public long countLearnTotal() {
+        //1. 统计学习记录总数（数据中心看板口径）
+        Long count = recordMapper.selectCount(new LambdaQueryWrapper<>());
+        return count == null ? 0L : count;
+    }
 }

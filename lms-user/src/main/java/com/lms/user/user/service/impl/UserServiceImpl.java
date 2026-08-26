@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -240,6 +241,13 @@ public class UserServiceImpl implements IUserService {
         // 注意：PageDTO.of(Page, List) 要求两者泛型一致，Page<User> 与 List<UserVO> 类型不同，
         // 故使用其内部等价实现 of(Long, List)（of(Page, List) 本质就是 of(page.getTotal(), list)）
         return PageDTO.of(page.getTotal(), vos);
+    }
+
+    @Override
+    public long countTodayUsers() {
+        //1. 统计今日新增用户：create_time 落在今日 0 点之后（含），供数据中心聚合
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .ge(User::getCreateTime, LocalDate.now().atStartOfDay()));
     }
 
     /**

@@ -51,4 +51,25 @@ public class PointsController {
     public R<List<PointsBoardVO>> board(@RequestParam(value = "size", defaultValue = "10") Integer size) {
         return R.ok(learningService.pointsBoard(size));
     }
+
+    /** 今日签到人数（数据中心看板聚合用） */
+    @GetMapping("/stats/sign-today")
+    @Operation(summary = "今日签到人数")
+    public R<Long> countTodaySignIn() {
+        return R.ok(learningService.countTodaySignIn());
+    }
+
+    /** 今日学习人次（数据中心看板聚合用） */
+    @GetMapping("/stats/learn-today")
+    @Operation(summary = "今日学习人次")
+    public R<Long> countTodayLearn() {
+        return R.ok(learningService.countTodayLearn());
+    }
+
+    /** 学习人次累计（数据中心看板聚合用） */
+    @GetMapping("/stats/learn-total")
+    @Operation(summary = "学习人次累计")
+    public R<Long> countLearnTotal() {
+        return R.ok(learningService.countLearnTotal());
+    }
 }

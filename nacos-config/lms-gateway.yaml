@@ -63,6 +63,11 @@ spring:
           uri: lb://lms-learning
           predicates:
             - Path=/lessons/**,/admin/lessons/**,/learn/**,/notes/**,/qa/**,/sign-in,/points/**
+        # 数据中心服务：数据看板/今日数据/Top10（需登录）
+        - id: lms-statistics
+          uri: lb://lms-statistics
+          predicates:
+            - Path=/dashboard/**
         # AI 服务
         - id: lms-ai
           uri: lb://lms-ai

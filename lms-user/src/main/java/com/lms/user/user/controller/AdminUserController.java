@@ -36,4 +36,11 @@ public class AdminUserController {
     public R<PageDTO<UserVO>> queryUserPage(UserPageQuery query) {
         return R.ok(userService.queryUserPage(query));
     }
+
+    /** 今日新增用户数（数据中心看板聚合用） */
+    @GetMapping("/stats/today")
+    @Operation(summary = "今日新增用户数")
+    public R<Long> countTodayUsers() {
+        return R.ok(userService.countTodayUsers());
+    }
 }

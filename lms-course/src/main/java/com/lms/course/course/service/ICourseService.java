@@ -4,6 +4,9 @@ import com.lms.common.domain.dto.PageDTO;
 import com.lms.course.course.domain.dto.CourseCardVO;
 import com.lms.course.course.domain.dto.CourseFormDTO;
 import com.lms.course.course.domain.query.CoursePageQuery;
+import com.lms.course.course.domain.vo.CourseTopVO;
+
+import java.util.List;
 
 /**
  * 课程业务服务
@@ -88,4 +91,26 @@ public interface ICourseService {
      * @return 课程卡片分页结果
      */
     PageDTO<CourseCardVO> queryEnrolledCourses(CoursePageQuery query);
+
+    /**
+     * 选课人次（选课中记录总数，数据中心看板用）
+     *
+     * @return 选课中记录数
+     */
+    long countEnrollTotal();
+
+    /**
+     * 今日新增课程数（数据中心看板用，统计口径为 create_time 落在今日 0 点之后）
+     *
+     * @return 今日新增课程数
+     */
+    long countTodayCourses();
+
+    /**
+     * 热门课程 Top N（按选课中人数降序，数据中心看板用）
+     *
+     * @param size 返回条数
+     * @return 热门课程列表（含课程名与选课人数）
+     */
+    List<CourseTopVO> topCourses(int size);
 }
