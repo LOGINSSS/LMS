@@ -57,7 +57,7 @@
 | lms-exam | 8092 | lms_exam | 题目管理（单选 / 多选 / 判断）、题库业务绑定 | [lms-exam/README.md](lms-exam/README.md) |
 | lms-learning | 8093 | lms_learning | 课次 / 学习记录 / 笔记 / 互动问答 / 签到 / 积分与积分榜 | [lms-learning/README.md](lms-learning/README.md) |
 | lms-statistics | 8094 | lms_statistics | 数据看板：总览 / 今日数据 / Top10，跨服务 Feign 聚合 | [lms-statistics/README.md](lms-statistics/README.md) |
-| lms-ai | 8090 | — | AgentScope Java + 通义千问 DashScope 的 LLM 对话 | [lms-ai/README.md](lms-ai/README.md) |
+| lms-ai | 8095 | — | AgentScope Java + 通义千问 DashScope 的 LLM 对话 | [lms-ai/README.md](lms-ai/README.md) |
 
 ### 公共层
 
@@ -152,5 +152,6 @@ LMS/
 ## 相关文档
 
 - [六大业务模块设计蓝图](docs/BUSINESS_MODULES.md)：媒资 / 搜索 / 学习 / 考试 / 数据中心 / 评价互动的设计依据
+- [前后端接口契约（JSON Schema）](docs/api-schemas/README.md)：与 Java DTO 一一对应的接口数据结构定义
 - [代码注释规范](docs/CODE_COMMENT_STYLE.md)
 - [MySQL 建库脚本说明](docker/mysql/init/README.md)

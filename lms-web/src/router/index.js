@@ -2,10 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '../utils/auth'
 
 // 多地址路由表：public 标记的页面无需登录，其余受登录守卫保护
+// 登录后默认落地 /home（角色入口主页），不再直接进入课程列表
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
   { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue'), meta: { public: true } },
-  { path: '/', redirect: '/courses' },
+  { path: '/', redirect: '/home' },
+  { path: '/home', name: 'home', component: () => import('../views/HomeView.vue') },
   { path: '/courses', name: 'courses', component: () => import('../views/CourseListView.vue') },
   { path: '/courses/:id', name: 'course-detail', component: () => import('../views/CourseDetailView.vue'), props: true },
   { path: '/my', name: 'my', component: () => import('../views/MyCoursesView.vue') },
@@ -14,8 +16,8 @@ const routes = [
   { path: '/dashboard', name: 'dashboard', component: () => import('../views/DashboardView.vue') },
   { path: '/learn', name: 'learn', component: () => import('../views/LearnView.vue') },
   { path: '/admin/questions', name: 'admin-questions', component: () => import('../views/QuestionManageView.vue') },
-  // 未匹配地址兜底回课程列表
-  { path: '/:pathMatch(.*)*', redirect: '/courses' }
+  // 未匹配地址兜底回角色主页
+  { path: '/:pathMatch(.*)*', redirect: '/home' }
 ]
 
 const router = createRouter({
@@ -23,14 +25,14 @@ const router = createRouter({
   routes
 })
 
-// 登录守卫：受保护页未登录 → 跳登录页并带回跳地址；已登录访问登录/注册页 → 回课程列表
+// 登录守卫：受保护页未登录 → 跳登录页并带回跳地址；已登录访问登录/注册页 → 回角色主页
 router.beforeEach((to) => {
   const token = getToken()
   if (!to.meta.public && !token) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (to.meta.public && token) {
-    return { path: '/courses' }
+    return { path: '/home' }
   }
   return true
 })

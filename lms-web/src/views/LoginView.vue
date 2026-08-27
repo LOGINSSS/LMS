@@ -39,7 +39,7 @@ const onSubmit = async () => {
   try {
     const data = await login(form)
     setAuth(data)
-    router.push(String(route.query.redirect || '/courses'))
+    router.push(String(route.query.redirect || '/home'))
   } catch (e) {
     errorMsg.value = e.message
   } finally {

@@ -1,7 +1,7 @@
 <script setup>
-// 根组件：顶部导航（课程列表 / 我的课程 / 退出登录）+ 路由出口
+// 根组件：顶部导航（按角色区分菜单）+ 路由出口
 import { useRouter } from 'vue-router'
-import { isTeacher, isStudent, clearAuth } from './utils/auth'
+import { isTeacher, isStudent, getUsername, clearAuth } from './utils/auth'
 import { logout } from './api/auth'
 
 const router = useRouter()
@@ -12,6 +12,9 @@ const roleLabel = () => {
   if (isStudent()) return '学生'
   return ''
 }
+
+// 顶部昵称展示（来自登录态缓存）
+const username = getUsername()
 
 // 退出登录：调后端把 token 加入黑名单，本地清登录态后回登录页
 const handleLogout = async () => {
@@ -29,17 +32,19 @@ const handleLogout = async () => {
   <div class="app-shell">
     <header class="topbar">
       <div class="container topbar-inner">
-        <router-link to="/courses" class="brand">LMS 在线学习平台</router-link>
+        <router-link to="/home" class="brand">LMS 在线学习平台</router-link>
         <nav class="nav">
+          <router-link to="/home">首页</router-link>
           <router-link to="/courses">课程</router-link>
           <router-link to="/search">搜索推荐</router-link>
           <router-link to="/my">我的课程</router-link>
           <router-link to="/learn">学习中心</router-link>
           <router-link to="/medias">媒资</router-link>
           <router-link v-if="isTeacher()" to="/admin/questions">题库</router-link>
-          <router-link to="/dashboard">数据看板</router-link>
+          <router-link v-if="isTeacher()" to="/dashboard">数据看板</router-link>
         </nav>
         <div class="user-area">
+          <span class="username">{{ username }}</span>
           <span class="role-tag">{{ roleLabel() }}</span>
           <button v-btn-fx class="btn" @click="handleLogout">退出登录</button>
         </div>
@@ -91,12 +96,14 @@ const handleLogout = async () => {
   font-size: 18px;
   font-weight: 600;
   color: #409eff;
+  white-space: nowrap;
 }
 
 .nav {
   display: flex;
   gap: 16px;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .nav a {
@@ -113,6 +120,15 @@ const handleLogout = async () => {
   display: flex;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
+}
+
+.username {
+  font-size: 14px;
+  color: #333;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .role-tag {

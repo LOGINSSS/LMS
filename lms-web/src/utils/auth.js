@@ -6,6 +6,8 @@ const USERNAME_KEY = 'lms_username'
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 
+export const getUsername = () => localStorage.getItem(USERNAME_KEY) || ''
+
 export const getUserType = () => Number(localStorage.getItem(USER_TYPE_KEY))
 
 export const isTeacher = () => getUserType() === 2
