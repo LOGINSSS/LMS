@@ -1,12 +1,12 @@
 <script setup>
 // 首页：登录后的角色入口主页（不再直接进课程列表）
-// 人物画像（GET /users/me）+ 按角色聚合的轻量统计 + 角色功能入口
+// 人物画像（GET /users/me）+ 角色统计 + 学生学习概览（积分/在学课程/最近学习进度）+ 角色功能入口
 // 动效遵循 gsap-skill：只动 transform/opacity，数据到位后入场，卸载前清理
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUserMe } from '../api/user'
 import { queryEnrolledCourses, queryMyCourses } from '../api/course'
-import { myPoints } from '../api/learn'
+import { myPoints, getCourseProgress } from '../api/learn'
 import { myInterests } from '../api/search'
 import { getDashboard } from '../api/statistics'
 import { getUsername, isTeacher, isStudent } from '../utils/auth'
@@ -68,6 +68,19 @@ const entranceList = computed(() => {
   return list.map((e, i) => ({ ...e, tone: TONES[i % TONES.length] }))
 })
 
+// 累计积分：拉积分明细聚合（pageSize 拉大，练手简化；积分流水量大时应收敛为后端聚合接口）
+async function fetchPointsTotal() {
+  try {
+    const data = await myPoints({ pageNo: 1, pageSize: 100 })
+    if (Array.isArray(data?.list)) {
+      return data.list.reduce((sum, r) => sum + (r.points || 0), 0)
+    }
+    return null
+  } catch (e) {
+    return null
+  }
+}
+
 // 角色统计加载：并发请求，单个失败降级为 null
 async function loadStats() {
   const settle = async (fn) => {
@@ -86,15 +99,52 @@ async function loadStats() {
     stats.value[1].value = dash?.userTotal ?? null
     stats.value[2].value = dash?.courseTotal ?? null
   } else if (isStudentRole) {
-    const [enrolled, points, tags] = await Promise.all([
+    const [enrolled, pointsTotal, tags] = await Promise.all([
       settle(() => queryEnrolledCourses({ pageNo: 1, pageSize: 1 })),
-      settle(() => myPoints({ pageNo: 1, pageSize: 1 })),
+      fetchPointsTotal(),
       settle(() => myInterests())
     ])
     stats.value[0].value = enrolled?.total ?? null
-    stats.value[1].value = points?.total ?? null
+    stats.value[1].value = pointsTotal
     stats.value[2].value = Array.isArray(tags) ? tags.length : null
   }
+}
+
+// 学生学习概览：累计积分 + 在学课程 + 最近学习进度（已选课程前 3 门逐门取进度）
+const learnOverview = ref({ points: null, enrolled: null, progresses: [] })
+
+// 进度条填充：数据就绪后置 true 触发 scaleX 过渡（只动 transform）
+const showProgress = ref(false)
+
+const avgProgress = computed(() => {
+  const values = learnOverview.value.progresses.map((p) => p.progress).filter((v) => v != null)
+  if (!values.length) return null
+  return Math.round(values.reduce((a, b) => a + b, 0) / values.length)
+})
+
+async function loadLearnOverview() {
+  if (!isStudentRole) return
+  const settle = async (fn) => {
+    try {
+      return await fn()
+    } catch (e) {
+      return null
+    }
+  }
+  const [pointsTotal, enrolled] = await Promise.all([
+    fetchPointsTotal(),
+    settle(() => queryEnrolledCourses({ pageNo: 1, pageSize: 3 }))
+  ])
+  learnOverview.value.points = pointsTotal
+  learnOverview.value.enrolled = enrolled?.total ?? null
+  const list = Array.isArray(enrolled?.list) ? enrolled.list.slice(0, 3) : []
+  const withProgress = await Promise.all(
+    list.map(async (course) => ({
+      course,
+      progress: await settle(() => getCourseProgress(course.id))
+    }))
+  )
+  learnOverview.value.progresses = withProgress
 }
 
 // 入口卡片批量入场（数据渲染完成后播放）
@@ -110,9 +160,10 @@ onMounted(async () => {
   } catch (e) {
     // 画像接口失败不阻塞页面（如旧账号无档案）
   }
-  await loadStats()
+  await Promise.all([loadStats(), loadLearnOverview()])
   loading.value = false
   await nextTick()
+  showProgress.value = true
   if (!prefersReducedMotion) play()
 })
 </script>
@@ -146,6 +197,35 @@ onMounted(async () => {
           <span>{{ s.label }}</span>
         </div>
       </div>
+    </section>
+
+    <!-- 学生学习概览：积分 + 最近学习进度（仅学生） -->
+    <section v-if="isStudentRole" class="panel">
+      <h3 class="section-title">学习概览</h3>
+      <div class="learn-metrics">
+        <div class="learn-metric">
+          <b>{{ learnOverview.points ?? '--' }}</b>
+          <span>累计积分</span>
+        </div>
+        <div class="learn-metric">
+          <b>{{ learnOverview.enrolled ?? '--' }}</b>
+          <span>在学课程</span>
+        </div>
+        <div class="learn-metric">
+          <b>{{ avgProgress ?? '--' }}</b>
+          <span>平均进度（%）</span>
+        </div>
+      </div>
+      <div v-if="learnOverview.progresses.length" class="progress-list">
+        <div v-for="item in learnOverview.progresses" :key="item.course.id" class="progress-item">
+          <router-link :to="`/courses/${item.course.id}`" class="progress-name">{{ item.course.name }}</router-link>
+          <div class="progress-track">
+            <div class="progress-bar" :style="{ transform: showProgress ? `scaleX(${(item.progress ?? 0) / 100})` : 'scaleX(0)' }"></div>
+          </div>
+          <span class="progress-value">{{ item.progress ?? 0 }}%</span>
+        </div>
+      </div>
+      <p v-else class="empty-tip">还没有学习记录，去课程广场选一门课开始学习吧</p>
     </section>
 
     <!-- 角色功能入口 -->
@@ -274,12 +354,89 @@ onMounted(async () => {
   color: #888;
 }
 
-/* 功能入口 */
+/* 学习概览 */
 .section-title {
   font-size: 16px;
   margin-bottom: 14px;
 }
 
+.learn-metrics {
+  display: flex;
+  margin-bottom: 14px;
+}
+
+.learn-metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-right: 1px solid #f0f2f5;
+}
+
+.learn-metric:last-child {
+  border-right: none;
+}
+
+.learn-metric b {
+  font-size: 20px;
+  color: #67c23a;
+}
+
+.learn-metric span {
+  font-size: 13px;
+  color: #888;
+}
+
+.progress-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.progress-name {
+  flex: 0 0 200px;
+  color: #333;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-name:hover {
+  color: #409eff;
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  background: #f0f2f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #409eff, #67c23a);
+  border-radius: 4px;
+  transform-origin: left center;
+  transition: transform 0.6s ease;
+}
+
+.progress-value {
+  flex: 0 0 44px;
+  text-align: right;
+  font-size: 13px;
+  color: #555;
+}
+
+.empty-tip {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 功能入口 */
 .entrance-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
