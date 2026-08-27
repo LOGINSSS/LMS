@@ -24,3 +24,6 @@ export const answerQuestion = (id, data) => request.post(`/qa/questions/${id}/an
 export const signIn = () => request.post('/points/sign-in')
 export const myPoints = (params) => request.get('/points/records', { params })
 export const pointsBoard = (params) => request.get('/points/board', { params })
+
+// ---------- 我的学习统计（首页学习概览）----------
+export const myLearnStats = () => request.get('/learn/stats/my')

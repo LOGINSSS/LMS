@@ -27,6 +27,7 @@ import com.lms.learning.learning.domain.po.SignIn;
 import com.lms.learning.learning.domain.query.NotePageQuery;
 import com.lms.learning.learning.domain.query.QaPageQuery;
 import com.lms.learning.learning.domain.vo.LessonVO;
+import com.lms.learning.learning.domain.vo.MyLearnStatsVO;
 import com.lms.learning.learning.domain.vo.NoteVO;
 import com.lms.learning.learning.domain.vo.PointsBoardVO;
 import com.lms.learning.learning.domain.vo.PointsVO;
@@ -283,6 +284,23 @@ public class LearningServiceImpl implements ILearningService {
                 .orderByDesc(PointsRecord::getCreateTime));
         List<PointsVO> vos = BeanUtils.copyList(page.getRecords(), PointsVO.class);
         return PageDTO.of(page.getTotal(), vos);
+    }
+
+    @Override
+    public MyLearnStatsVO myLearnStats() {
+        Long userId = currentUserId();
+        MyLearnStatsVO vo = new MyLearnStatsVO();
+        //1. 个人内容数：笔记 / 提问 / 回答 / 签到（逻辑删除自动过滤）
+        vo.setNoteTotal(noteMapper.selectCount(new LambdaQueryWrapper<Note>().eq(Note::getUserId, userId)));
+        vo.setQaTotal(questionMapper.selectCount(new LambdaQueryWrapper<QaQuestion>().eq(QaQuestion::getUserId, userId)));
+        vo.setAnswerTotal(answerMapper.selectCount(new LambdaQueryWrapper<Answer>().eq(Answer::getUserId, userId)));
+        vo.setSignTotal(signInMapper.selectCount(new LambdaQueryWrapper<SignIn>().eq(SignIn::getUserId, userId)));
+        //2. 累计积分：流水求和（与积分榜同口径，IFNULL 防空表返回 0）
+        Map<String, Object> row = pointsMapper.selectMaps(new QueryWrapper<PointsRecord>()
+                .select("IFNULL(SUM(points), 0) AS total")
+                .eq("user_id", userId)).get(0);
+        vo.setPointsTotal(((Number) row.get("total")).longValue());
+        return vo;
     }
 
     @Override

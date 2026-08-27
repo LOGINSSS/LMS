@@ -23,6 +23,18 @@
         "totalPoints": { "type": "integer", "description": "积分总分" }
       },
       "additionalProperties": false
+    },
+    "MyLearnStatsVO": {
+      "type": "object",
+      "description": "我的学习统计（GET /learn/stats/my，当前登录用户累计值，首页学习概览用）",
+      "properties": {
+        "noteTotal": { "type": ["integer", "null"], "description": "我的笔记数" },
+        "qaTotal": { "type": ["integer", "null"], "description": "我的提问数" },
+        "answerTotal": { "type": ["integer", "null"], "description": "我的回答数" },
+        "signTotal": { "type": ["integer", "null"], "description": "累计签到天数" },
+        "pointsTotal": { "type": ["integer", "null"], "description": "累计积分（积分流水求和，正负相抵）" }
+      },
+      "additionalProperties": false
     }
   }
 }

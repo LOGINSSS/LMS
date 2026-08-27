@@ -6,7 +6,7 @@ import { ref, computed, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUserMe } from '../api/user'
 import { queryEnrolledCourses, queryMyCourses } from '../api/course'
-import { myPoints, getCourseProgress } from '../api/learn'
+import { myLearnStats, getCourseProgress } from '../api/learn'
 import { myInterests } from '../api/search'
 import { getDashboard } from '../api/statistics'
 import { getUsername, isTeacher, isStudent } from '../utils/auth'
@@ -68,20 +68,7 @@ const entranceList = computed(() => {
   return list.map((e, i) => ({ ...e, tone: TONES[i % TONES.length] }))
 })
 
-// 累计积分：拉积分明细聚合（pageSize 拉大，练手简化；积分流水量大时应收敛为后端聚合接口）
-async function fetchPointsTotal() {
-  try {
-    const data = await myPoints({ pageNo: 1, pageSize: 100 })
-    if (Array.isArray(data?.list)) {
-      return data.list.reduce((sum, r) => sum + (r.points || 0), 0)
-    }
-    return null
-  } catch (e) {
-    return null
-  }
-}
-
-// 角色统计加载：并发请求，单个失败降级为 null
+// 角色统计加载（教师）：并发请求，单个失败降级为 null
 async function loadStats() {
   const settle = async (fn) => {
     try {
@@ -90,40 +77,23 @@ async function loadStats() {
       return null
     }
   }
-  if (isTeacherRole) {
-    const [mine, dash] = await Promise.all([
-      settle(() => queryMyCourses({ pageNo: 1, pageSize: 1 })),
-      settle(() => getDashboard())
-    ])
-    stats.value[0].value = mine?.total ?? null
-    stats.value[1].value = dash?.userTotal ?? null
-    stats.value[2].value = dash?.courseTotal ?? null
-  } else if (isStudentRole) {
-    const [enrolled, pointsTotal, tags] = await Promise.all([
-      settle(() => queryEnrolledCourses({ pageNo: 1, pageSize: 1 })),
-      fetchPointsTotal(),
-      settle(() => myInterests())
-    ])
-    stats.value[0].value = enrolled?.total ?? null
-    stats.value[1].value = pointsTotal
-    stats.value[2].value = Array.isArray(tags) ? tags.length : null
-  }
+  const [mine, dash] = await Promise.all([
+    settle(() => queryMyCourses({ pageNo: 1, pageSize: 1 })),
+    settle(() => getDashboard())
+  ])
+  stats.value[0].value = mine?.total ?? null
+  stats.value[1].value = dash?.userTotal ?? null
+  stats.value[2].value = dash?.courseTotal ?? null
 }
 
-// 学生学习概览：累计积分 + 在学课程 + 最近学习进度（已选课程前 3 门逐门取进度）
-const learnOverview = ref({ points: null, enrolled: null, progresses: [] })
+// 学生学习概览：累计积分 / 我的笔记 / 我的提问 + 最近学习进度（已选课程前 3 门逐门取进度）
+const learnOverview = ref({ points: null, noteTotal: null, qaTotal: null, progresses: [] })
 
 // 进度条填充：数据就绪后置 true 触发 scaleX 过渡（只动 transform）
 const showProgress = ref(false)
 
-const avgProgress = computed(() => {
-  const values = learnOverview.value.progresses.map((p) => p.progress).filter((v) => v != null)
-  if (!values.length) return null
-  return Math.round(values.reduce((a, b) => a + b, 0) / values.length)
-})
-
-async function loadLearnOverview() {
-  if (!isStudentRole) return
+// 学生数据加载：学习统计（lms-learning 聚合接口）+ 在学课程（前 3 门取进度）+ 兴趣标签（search）
+async function loadStudentData() {
   const settle = async (fn) => {
     try {
       return await fn()
@@ -131,20 +101,26 @@ async function loadLearnOverview() {
       return null
     }
   }
-  const [pointsTotal, enrolled] = await Promise.all([
-    fetchPointsTotal(),
-    settle(() => queryEnrolledCourses({ pageNo: 1, pageSize: 3 }))
+  const [myStats, enrolled, tags] = await Promise.all([
+    settle(() => myLearnStats()),
+    settle(() => queryEnrolledCourses({ pageNo: 1, pageSize: 3 })),
+    settle(() => myInterests())
   ])
-  learnOverview.value.points = pointsTotal
-  learnOverview.value.enrolled = enrolled?.total ?? null
+  // 画像卡统计
+  stats.value[0].value = enrolled?.total ?? null
+  stats.value[1].value = myStats?.pointsTotal ?? null
+  stats.value[2].value = Array.isArray(tags) ? tags.length : null
+  // 学习概览
+  learnOverview.value.points = myStats?.pointsTotal ?? null
+  learnOverview.value.noteTotal = myStats?.noteTotal ?? null
+  learnOverview.value.qaTotal = myStats?.qaTotal ?? null
   const list = Array.isArray(enrolled?.list) ? enrolled.list.slice(0, 3) : []
-  const withProgress = await Promise.all(
+  learnOverview.value.progresses = await Promise.all(
     list.map(async (course) => ({
       course,
       progress: await settle(() => getCourseProgress(course.id))
     }))
   )
-  learnOverview.value.progresses = withProgress
 }
 
 // 入口卡片批量入场（数据渲染完成后播放）
@@ -160,7 +136,11 @@ onMounted(async () => {
   } catch (e) {
     // 画像接口失败不阻塞页面（如旧账号无档案）
   }
-  await Promise.all([loadStats(), loadLearnOverview()])
+  if (isStudentRole) {
+    await loadStudentData()
+  } else {
+    await loadStats()
+  }
   loading.value = false
   await nextTick()
   showProgress.value = true
@@ -208,12 +188,12 @@ onMounted(async () => {
           <span>累计积分</span>
         </div>
         <div class="learn-metric">
-          <b>{{ learnOverview.enrolled ?? '--' }}</b>
-          <span>在学课程</span>
+          <b>{{ learnOverview.noteTotal ?? '--' }}</b>
+          <span>我的笔记</span>
         </div>
         <div class="learn-metric">
-          <b>{{ avgProgress ?? '--' }}</b>
-          <span>平均进度（%）</span>
+          <b>{{ learnOverview.qaTotal ?? '--' }}</b>
+          <span>我的提问</span>
         </div>
       </div>
       <div v-if="learnOverview.progresses.length" class="progress-list">

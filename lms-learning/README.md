@@ -27,6 +27,7 @@
 | POST | `/admin/lessons` | 创建课次（挂课程 + 媒资视频） | 教师 |
 | POST | `/learn/records` | 上报学习进度（幂等合并） | 登录 |
 | GET | `/learn/progress` | 我的课程进度 | 登录 |
+| GET | `/learn/stats/my` | 我的学习统计（笔记 / 提问 / 回答 / 签到 / 积分，学习概览用） | 登录 |
 
 ### 笔记
 
@@ -77,7 +78,7 @@ com/lms/learning/
 ├── LearningApplication.java
 └── learning/
     ├── constants/     # LearningErrorInfo
-    ├── controller/    # LessonController / NoteController / QaController / PointsController
+    ├── controller/    # LessonController / NoteController / QaController / PointsController / LearnStatsController
     ├── domain/        # dto / po（7 张表）/ query / vo
     ├── enums/         # PointsType
     ├── mapper/        # Lesson / LearningRecord / Note / QaQuestion / Answer / PointsRecord / SignIn

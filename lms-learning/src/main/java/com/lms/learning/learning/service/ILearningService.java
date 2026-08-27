@@ -9,6 +9,7 @@ import com.lms.learning.learning.domain.dto.QaQuestionFormDTO;
 import com.lms.learning.learning.domain.query.NotePageQuery;
 import com.lms.learning.learning.domain.query.QaPageQuery;
 import com.lms.learning.learning.domain.vo.LessonVO;
+import com.lms.learning.learning.domain.vo.MyLearnStatsVO;
 import com.lms.learning.learning.domain.vo.NoteVO;
 import com.lms.learning.learning.domain.vo.PointsBoardVO;
 import com.lms.learning.learning.domain.vo.PointsVO;
@@ -161,4 +162,11 @@ public interface ILearningService {
      * @return 学习记录总数
      */
     long countLearnTotal();
+
+    /**
+     * 我的学习统计（笔记/提问/回答/签到/积分，均为当前登录用户累计值）
+     *
+     * @return 我的学习统计
+     */
+    MyLearnStatsVO myLearnStats();
 }
