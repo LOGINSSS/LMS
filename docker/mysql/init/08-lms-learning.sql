@@ -105,3 +105,43 @@ CREATE TABLE IF NOT EXISTS `sign_in` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_date` (`user_id`, `sign_date`) COMMENT '同一用户每天一次（并发兜底）'
 ) ENGINE = InnoDB COMMENT ='签到表';
+
+-- ============================================================
+-- 学习数据中心扩展（评测业务线：诊断→规划→习题→测评闭环，需求文档 §4.7）
+-- ============================================================
+
+-- ---------- 做题记录表（错题集原料：习题/测评作答明细） ----------
+CREATE TABLE IF NOT EXISTS `exercise_record` (
+    `id`               BIGINT        NOT NULL AUTO_INCREMENT,
+    `user_id`          BIGINT        NOT NULL COMMENT '做题学生',
+    `course_id`        BIGINT        NOT NULL COMMENT '课程 id',
+    `question_id`      BIGINT        NOT NULL COMMENT '题目 id（lms_exam.question.id，可为 0 表示测评题）',
+    `question_type`    TINYINT       DEFAULT NULL COMMENT '题型：1单选 2多选 3判断',
+    `knowledge_point`  VARCHAR(64)   DEFAULT NULL COMMENT '对应知识点（题目 category）',
+    `user_answer`      VARCHAR(1000) DEFAULT NULL COMMENT '学生作答（JSON）',
+    `correct`          TINYINT       NOT NULL DEFAULT 0 COMMENT '是否答对：1对 0错',
+    `score`            INT           NOT NULL DEFAULT 0 COMMENT '本题得分',
+    `source`           TINYINT       NOT NULL DEFAULT 1 COMMENT '来源：1练习 2测评',
+    `create_time`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`          TINYINT       NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删 1已删',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_course` (`user_id`, `course_id`, `create_time`),
+    KEY `idx_knowledge` (`user_id`, `knowledge_point`)
+) ENGINE = InnoDB COMMENT ='做题记录表（错题集原料）';
+
+-- ---------- 测评结果表（学习效果评估报告留存，需求文档 §4.5/§6.4 可观测性） ----------
+CREATE TABLE IF NOT EXISTS `learning_assessment` (
+    `id`                BIGINT       NOT NULL AUTO_INCREMENT,
+    `user_id`           BIGINT       NOT NULL COMMENT '被测评学生',
+    `course_id`         BIGINT       NOT NULL COMMENT '课程 id',
+    `title`             VARCHAR(100) DEFAULT NULL COMMENT '测评标题（如：数据结构-图 单元测评）',
+    `report`            TEXT         NULL COMMENT '评估报告（智能体输出，markdown/文本）',
+    `total_score`       INT          NOT NULL DEFAULT 0 COMMENT '总分',
+    `knowledge_mastery` TEXT         NULL COMMENT '知识点掌握度 JSON（{知识点: 掌握度0-100}）',
+    `create_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`           TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删 1已删',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_course` (`user_id`, `course_id`)
+) ENGINE = InnoDB COMMENT ='测评结果表（学习效果评估报告）';
