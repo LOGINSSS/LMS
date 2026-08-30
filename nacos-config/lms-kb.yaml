@@ -1,0 +1,49 @@
+# ============================================================
+# lms-kb 知识库服务配置（本地 application.yml 兜底，Nacos 为唯一配置源）
+# 推送：scripts/push-nacos-config.ps1
+# ============================================================
+server:
+  port: 8096
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_kb?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  data:
+    elasticsearch:
+      uris: http://localhost:9200
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: kb
+      packages-to-scan: com.lms.kb.controller
+
+lms:
+  mvc:
+    # 开启网关 user-info 头解析 → UserContext（/kb/my 个人知识库等接口需要当前用户，spec §4.4）
+    user-header-enabled: true
+  kb:
+    es-index: lms_kb_chunk
+    dense-dim: 1024
+    fetch-k: 20
+    rerank-top-k: 5
+    rrf-k: 60
+    chunk-size: 900
+    chunk-overlap: 100
+    embed-batch-size: 10
+    pipeline-threads: 4
+  ai:
+    dashscope-api-key: ${DASHSCOPE_API_KEY:}
+    dashscope-base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    dashscope-native-url: https://dashscope.aliyuncs.com/api/v1
+    qwen-vl-model: qwen-vl-max
+    embedding-model: text-embedding-v3
+    rerank-model: gte-rerank-v2
+    deepseek-api-key: ${DEEPSEEK_API_KEY:}
+    deepseek-base-url: https://api.deepseek.com
+    deepseek-reasoner-model: deepseek-reasoner
+    deepseek-chat-model: deepseek-chat
