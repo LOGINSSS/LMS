@@ -39,6 +39,11 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!-- Feign：转发课程知识库 RAG 问答到 lms-kb -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
 
         <!-- AgentScope Java：核心 + OpenAI 兼容模型 Spring Boot Starter（可指向 DashScope 兼容模式） -->
         <dependency>
@@ -48,6 +53,25 @@
         <dependency>
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-openai-spring-boot-starter</artifactId>
+        </dependency>
+        <!-- AgentScope OpenAI 模型扩展：按声明构建多模型实例（qwen-max 编排 / qwen-plus 子 agent / qwen-turbo 摘要，spec §3/§10） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-model-openai</artifactId>
+        </dependency>
+        <!-- AgentScope ReMe 记忆扩展（阿里通义实验室记忆方案：工作/情景/语义记忆 + 提取-遗忘-整合，spec §4 三层记忆对接） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-reme</artifactId>
+        </dependency>
+        <!-- Feign multipart 编码（media-agent/kb-agent 上传工具，spec §3.3） -->
+        <dependency>
+            <groupId>io.github.openfeign.form</groupId>
+            <artifactId>feign-form</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.openfeign.form</groupId>
+            <artifactId>feign-form-spring</artifactId>
         </dependency>
     </dependencies>
 

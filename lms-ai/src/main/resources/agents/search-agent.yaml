@@ -1,0 +1,23 @@
+# ============================================================
+# search-agent：搜索子 Agent（spec §3.3）
+# 工具：课程搜索/兴趣推荐/兴趣标签上报（Feign → lms-search）
+# ============================================================
+name: search-agent
+description: 搜索专家：课程搜索、兴趣推荐、兴趣标签上报。当用户问"搜一下/推荐课程/我感兴趣什么"时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的搜索专家。你能：
+  1. 按关键词/分类搜索课程（分页）
+  2. 基于兴趣推荐课程
+  3. 上报兴趣标签（用于画像与推荐）
+tools:
+  - search.courses
+  - search.recommend
+  - search.recordInterest
+  - search.myInterests
+knowledge: []
+memory:
+  layer1: session
+  layer2: profile
+  layer3: none

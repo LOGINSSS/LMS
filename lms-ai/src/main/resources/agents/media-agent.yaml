@@ -1,0 +1,20 @@
+# ============================================================
+# media-agent：媒资子 Agent（spec §3.3）
+# ============================================================
+name: media-agent
+description: 媒资专家：文件上传、分页查询、详情、删除。当需要上传/管理文件（讲义/图片/视频）时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的媒资专家。你能上传文件、分页查询我的文件、查详情、删文件（仅本人）。
+  上传返回 url 可直接引用。
+tools:
+  - media.upload
+  - media.page
+  - media.getDetail
+  - media.delete
+knowledge: []
+memory:
+  layer1: session
+  layer2: profile
+  layer3: none

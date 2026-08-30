@@ -1,0 +1,57 @@
+package com.lms.ai.controller;
+
+import com.lms.ai.task.AgentTask;
+import com.lms.ai.task.TaskService;
+import com.lms.common.domain.R;
+import com.lms.common.utils.UserContext;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 任务接口（spec §8.3：/agent/tasks）
+ */
+@Tag(name = "Agent 任务")
+@RestController
+@RequestMapping("/agent/tasks")
+@RequiredArgsConstructor
+public class TaskController {
+
+    private final TaskService taskService;
+
+    @PostMapping
+    @Operation(summary = "发布任务（agent 内部工具/管理端）")
+    public R<String> schedule(@RequestBody @Valid TaskScheduleRequest req) {
+        String taskId = taskService.schedule(req.taskType(), UserContext.getUser(), "admin",
+                req.triggerType(), req.payload(), req.delaySeconds(), req.cron());
+        return R.ok(taskId);
+    }
+
+    @GetMapping("/{taskId}")
+    @Operation(summary = "任务状态与结果")
+    public R<AgentTask> query(@PathVariable("taskId") String taskId) {
+        return R.ok(taskService.query(taskId));
+    }
+
+    @PostMapping("/{taskId}/cancel")
+    @Operation(summary = "取消任务")
+    public R<Void> cancel(@PathVariable("taskId") String taskId) {
+        taskService.cancel(taskId);
+        return R.ok();
+    }
+
+    public record TaskScheduleRequest(@NotBlank(message = "任务类型不能为空") String taskType,
+                                      Integer triggerType,
+                                      java.util.Map<String, Object> payload,
+                                      Integer delaySeconds,
+                                      String cron) {
+    }
+}

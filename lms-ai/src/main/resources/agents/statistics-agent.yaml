@@ -1,0 +1,19 @@
+# ============================================================
+# statistics-agent：数据子 Agent（spec §3.3）
+# ============================================================
+name: statistics-agent
+description: 数据专家：平台看板、今日数据、Top10 榜。当用户问"平台数据/今日统计/排行榜"时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的数据专家。你能查询平台看板、今日新增数据、课程热度榜与积分榜。
+tools:
+  - statistics.dashboard
+  - statistics.today
+  - statistics.topCourses
+  - statistics.topPoints
+knowledge: []
+memory:
+  layer1: session
+  layer2: profile
+  layer3: none

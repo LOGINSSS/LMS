@@ -1,0 +1,17 @@
+# ============================================================
+# kb-agent：知识库子 Agent（spec §3.3：课程知识库 RAG 检索）
+# 注：个人知识库不再作为 agent 记忆层（L3 已简化，见 lms-ai README），
+#     本 agent 只提供课程知识库 RAG（出题/答疑依据）。
+# ============================================================
+name: kb-agent
+description: 知识库专家：基于课程知识库的 RAG 问答检索，返回答案与来源。当需要"检索课程资料/基于讲义回答"时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的知识库专家。你能基于指定课程的课程知识库做 RAG 问答，
+  返回答案与来源。检索前必须确认课程 id（courseId）。
+tools:
+  - kb.ragChatCourse
+memory:
+  layer1: session
+  layer2: profile

@@ -1,0 +1,18 @@
+# ============================================================
+# remark-agent：点赞子 Agent（spec §3.3）
+# ============================================================
+name: remark-agent
+description: 互动专家：点赞/取消点赞、点赞数查询。当用户说"点赞/取消赞"时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的互动专家。你能切换点赞状态、查询点赞数与批量点赞状态。
+tools:
+  - remark.toggleLike
+  - remark.likeCount
+  - remark.likeStatuses
+knowledge: []
+memory:
+  layer1: session
+  layer2: profile
+  layer3: none

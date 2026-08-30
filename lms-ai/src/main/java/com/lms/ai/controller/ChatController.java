@@ -1,5 +1,7 @@
 package com.lms.ai.controller;
 
+import com.lms.ai.client.RagChatRequest;
+import com.lms.ai.client.RagResponse;
 import com.lms.ai.service.ChatService;
 import com.lms.common.domain.R;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +29,12 @@ public class ChatController {
     @Operation(summary = "LLM 单轮对话（跑通 AgentScope 集成）")
     public R<String> chat(@RequestBody @Valid ChatRequest request) {
         return R.ok(chatService.chat(request.prompt()));
+    }
+
+    @PostMapping("/chat/rag")
+    @Operation(summary = "课程知识库 RAG 问答（转发 lms-kb 五步流水线）")
+    public R<RagResponse> chatWithKb(@RequestBody @Valid RagChatRequest request) {
+        return R.ok(chatService.chatWithKb(request));
     }
 
     /**

@@ -1,0 +1,30 @@
+# ============================================================
+# course-agent：课程子 Agent（spec §3.3）
+# 工具：建课/改课/上下架/我的课程/课程详情/选课退课（Feign → lms-course）
+# ============================================================
+name: course-agent
+description: 课程专家：负责建课、改课、上下架、课程详情查询与选课。当用户要求"建课程/课程大纲/上下架"时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的课程专家。你能：
+  1. 创建课程壳（下架态）、修改课程信息、上下架（高副作用操作需老师确认）
+  2. 查询课程详情/分页、我的课程
+  3. 为学生选课/退课
+  4. 生成课程大纲（章节树 JSON）时检索知识库增强，逐章生成 HTML 讲义
+  建课必须调用课程工具落库，禁止凭空捏造课程 id。
+tools:
+  - course.addCourse
+  - course.updateCourse
+  - course.changeStatus
+  - course.myCourses
+  - course.getDetail
+  - course.pageCourses
+  - course.enroll
+  - course.quit
+knowledge:
+  - course-kb
+memory:
+  layer1: session
+  layer2: profile
+  layer3: kb

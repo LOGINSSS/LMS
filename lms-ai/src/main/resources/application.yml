@@ -6,7 +6,9 @@ spring:
     name: lms-ai
   # 从 Nacos 配置中心拉取配置（optional：Nacos 中暂无配置时不影响启动，本地配置兜底）
   config:
-    import: optional:nacos:lms-ai.yaml?group=DEFAULT_GROUP
+    import:
+      - optional:nacos:lms-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - optional:nacos:lms-ai.yaml?group=DEFAULT_GROUP&refreshEnabled=true
   cloud:
     nacos:
       discovery:
@@ -15,19 +17,78 @@ spring:
         server-addr: ${NACOS_ADDR:localhost:8848}
         file-extension: yaml
         group: DEFAULT_GROUP
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:13306/lms_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
+  kafka:
+    bootstrap-servers: ${KAFKA_ADDR:localhost:29092}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
 
 # ============ AgentScope Java（LLM 模型接入，配置键经本地 jar 源码核对） ============
 # 模型后端：通义千问 DashScope（OpenAI 兼容模式）
 # api-key 通过环境变量 DASHSCOPE_API_KEY 注入，不要写死在代码/配置文件里
 agentscope:
   openai:
-    enabled: true                                            # 启用 OpenAI 兼容模型自动配置
+    enabled: true                                            # 启用 OpenAI 兼容模型自动配置（默认 qwen-plus 单模型）
     api-key: ${DASHSCOPE_API_KEY:}                           # 阿里云百炼 API Key
     base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
     model-name: qwen-plus                                    # 通义千问模型（qwen-plus / qwen-max / qwen-turbo）
     stream: true
   model:
     provider: dashscope
+
+# ============ 个人 Agent 体系（spec §9：阶段开关，关闭即回退上一阶段能力） ============
+lms:
+  mvc:
+    # 开启网关 user-info 头解析 → UserContext（/agent/** 需登录，spec §8.1）
+    user-header-enabled: true
+  ai:
+    agent:
+      enabled: true                                          # Agent 运行时总开关（阶段 1）
+      # 子 Agent 声明文件路径（classpath 下 agents/*.yaml，spec §3.2）
+      declaration-path: agents
+      # 模型分级（spec §10）：编排 qwen-max / 子 agent qwen-plus / 摘要压缩 qwen-turbo
+      orchestrator-model: qwen-max
+      subagent-model: qwen-plus
+      summary-model: qwen-turbo
+      # L1 会话消息 Redis TTL（天，spec §4.1）
+      session-ttl-days: 7
+      # AgentScope ReMe 长期记忆（spec §4.3 L2：对话轨迹提取-整合-检索注入）
+      # 需先部署 ReMe 服务端（官方仓库 agentscope-ai/ReMe，Docker 或百炼云服务），
+      # 填好 base-url 并 enabled=true 后生效；未配置自动回退 MySQL 画像记忆
+      reme:
+        enabled: ${LMS_REME_ENABLED:false}
+        base-url: ${LMS_REME_BASE_URL:}
+        timeout-ms: 3000
+        workspace-prefix: user_
+      # 互调深度限制（spec §5.3：个人 agent → 子 agent → 工具，≤3）
+      max-invoke-depth: 3
+      # 高副作用工具（建题/上架/推送）前置人工确认（阶段 5 加固项，当前先提示不拦截）
+      require-confirm: false
+    im:
+      enabled: true                                          # IM 管道开关（阶段 4）
+      channel: console                                       # console | wecom | wechat | qq
+      wecom-webhook: ""                                      # 企微群机器人 webhook（启用 wecom 时配置）
+      callback-secret: ""                                    # 平台回调验签密钥
+    task:
+      enabled: true                                          # 定时任务开关（阶段 4）
+      topic: lms-agent-task                                 # 任务事件 Kafka topic
+      behavior-topic: lms-agent-behavior                    # 行为事件 Kafka topic（spec §4.3）
+      # Kafka 事件通知开关（默认关：练手用落库 + @Scheduled 轮询，Kafka 仅做事件通知，spec §11）
+      kafka-enabled: false
+      # 未回复提醒延迟（秒）：学生问答 2 小时
+      qa-remind-delay-seconds: 7200
 
 # Knife4j / springdoc
 springdoc:

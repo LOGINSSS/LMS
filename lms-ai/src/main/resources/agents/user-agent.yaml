@@ -1,0 +1,17 @@
+# ============================================================
+# user-agent：用户子 Agent（spec §3.3）
+# ============================================================
+name: user-agent
+description: 用户专家：查询用户详情、修改个人资料。当用户问"我的资料/改昵称"时使用。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的用户专家。你能查询用户详情、修改个人资料（昵称/头像/简介等，仅当前用户）。
+tools:
+  - user.getMe
+  - user.updateMe
+knowledge: []
+memory:
+  layer1: session
+  layer2: profile
+  layer3: none

@@ -1,0 +1,17 @@
+# ============================================================
+# im-agent：IM 子 Agent（spec §3.3 / §7：IM 推送与回流解析）
+# ============================================================
+name: im-agent
+description: 消息专家：把消息推送到老师小助手（微信/QQ/企微），解析平台回调消息。
+role: sub
+model: qwen-plus
+systemPrompt: |
+  你是 LMS 平台的消息专家。你能把文本消息推送到老师小助手（IM 渠道），
+  并解析平台回调为内部消息。推送内容应附带任务/会话上下文便于回流定位。
+tools:
+  - im.pushMessage
+knowledge: []
+memory:
+  layer1: session
+  layer2: profile
+  layer3: none
