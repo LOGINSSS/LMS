@@ -68,11 +68,16 @@ spring:
           uri: lb://lms-statistics
           predicates:
             - Path=/dashboard/**
-        # AI 服务
+        # AI 服务：单轮 chat + 个人 Agent（/agent/**，spec §8.1）
         - id: lms-ai
           uri: lb://lms-ai
           predicates:
-            - Path=/ai/**
+            - Path=/ai/**,/agent/**
+        # 知识库服务：知识库管理/文档入库/RAG 问答/评估
+        - id: lms-kb
+          uri: lb://lms-kb
+          predicates:
+            - Path=/kb/**,/rag/**,/eval/**
 
 lms:
   gateway:
@@ -86,3 +91,5 @@ lms:
       - /swagger-ui/**
       - /favicon.ico
       - /actuator/**
+      # IM 平台回调：放行但由 lms-ai 验签（spec §7.3 安全：回调只做投递）
+      - /agent/im/callback/**

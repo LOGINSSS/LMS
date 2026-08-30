@@ -1,0 +1,67 @@
+# ============================================================
+# lms-ai AI 服务配置（本地 application.yml 兜底，Nacos 为唯一配置源）
+# 推送：scripts/push-nacos-config.ps1
+# 个人 Agent 体系（spec §9 阶段开关：关闭即回退上一阶段能力）
+# ============================================================
+server:
+  port: 8095
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
+  kafka:
+    bootstrap-servers: localhost:29092
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: ai
+      packages-to-scan: com.lms.ai.controller
+
+agentscope:
+  openai:
+    api-key: ${DASHSCOPE_API_KEY:}
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model-name: qwen-plus
+    stream: true
+
+lms:
+  mvc:
+    # 开启网关 user-info 头解析 → UserContext（/agent/** 需登录，spec §8.1）
+    user-header-enabled: true
+  ai:
+    agent:
+      enabled: true                                          # Agent 运行时总开关（阶段 1）
+      declaration-path: agents                               # 子 Agent 声明路径（classpath）
+      orchestrator-model: qwen-max                           # 编排（个人 agent）
+      subagent-model: qwen-plus                              # 子 agent
+      summary-model: qwen-turbo                              # 画像摘要压缩
+      session-ttl-days: 7                                    # L1 会话 Redis TTL（天）
+      reme:
+        enabled: false                                       # ReMe 长期记忆开关（需先部署 ReMe 服务端）
+        base-url: ""                                         # ReMe 服务端地址（如 http://localhost:8000）
+        timeout-ms: 3000
+        workspace-prefix: user_
+      max-invoke-depth: 3                                    # 互调深度限制
+      require-confirm: false                                 # 高副作用人工确认（阶段 5 加固）
+    im:
+      enabled: true                                          # IM 管道开关（阶段 4）
+      channel: console                                       # console | wecom | wechat | qq
+      wecom-webhook: ""                                      # 企微群机器人 webhook
+      callback-secret: ""                                    # 平台回调验签密钥
+    task:
+      enabled: true                                          # 定时任务开关（阶段 4）
+      topic: lms-agent-task
+      behavior-topic: lms-agent-behavior
+      kafka-enabled: false                                   # Kafka 事件通知（默认关，落库轮询为主）
+      qa-remind-delay-seconds: 7200                          # 学生问答 2h 未回复提醒老师

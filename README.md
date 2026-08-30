@@ -57,7 +57,7 @@
 | lms-exam | 8092 | lms_exam | 题目管理（单选 / 多选 / 判断）、题库业务绑定 | [lms-exam/README.md](lms-exam/README.md) |
 | lms-learning | 8093 | lms_learning | 课次 / 学习记录 / 笔记 / 互动问答 / 签到 / 积分与积分榜 | [lms-learning/README.md](lms-learning/README.md) |
 | lms-statistics | 8094 | lms_statistics | 数据看板：总览 / 今日数据 / Top10，跨服务 Feign 聚合 | [lms-statistics/README.md](lms-statistics/README.md) |
-| lms-ai | 8095 | — | AgentScope Java + 通义千问 DashScope 的 LLM 对话 | [lms-ai/README.md](lms-ai/README.md) |
+| lms-ai | 8095 | lms_ai（L1 会话/L2 画像/任务）+ Redis | AgentScope Java + DashScope：单轮对话 + **个人 Agent 体系**（个人/子 Agent、三层记忆、邀请制编排、IM 管道、定时任务） | [lms-ai/README.md](lms-ai/README.md) |
 
 ### 公共层
 
@@ -75,7 +75,7 @@
 
 - `docker-compose.yml`：nacos / mysql / redis / kafka / es（可选 kafka-ui / kibana）
 - `docker/mysql/init/`：MySQL 首次启动自动执行的建库脚本（每服务独立库 `lms_<domain>`）
-- `nacos-config/`：配置中心内容源（11 份 yaml），`scripts/push-nacos-config.ps1` 一键导入
+- `nacos-config/`：配置中心内容源（13 份 yaml），`scripts/push-nacos-config.ps1` 一键导入
 - `scripts/`：`start-all.ps1` / `stop-all.ps1`（一键启停全部服务）、`cleanup-demo-data.sql`
 
 ## 快速开始
@@ -131,7 +131,7 @@ LMS/
 ├── mvn-settings.xml         # 项目专用 Maven settings（localRepository 指向 .m2-repo）
 ├── docker-compose.yml       # 基础设施编排：nacos/mysql/redis/kafka/es（+ kafka-ui/kibana）
 ├── docker/mysql/init/       # MySQL 首次启动自动建库脚本（每服务独立库 lms_<domain>）
-├── nacos-config/            # 配置中心内容源（lms-common/gateway/auth/... 共 11 份 yaml）
+├── nacos-config/            # 配置中心内容源（lms-common/gateway/auth/... 共 13 份 yaml）
 ├── scripts/                 # 运维脚本：push-nacos-config / start-all / stop-all
 ├── lms-common/              # 公共库：统一响应/异常/分页/工具/JWT/自动配置 → README
 ├── lms-gateway/             # 网关：路由 + JWT 鉴权 + 白名单 + user-info 透传 → README
@@ -151,6 +151,7 @@ LMS/
 
 ## 相关文档
 
+- [个人 Agent 体系与三层记忆编排规范](docs/PERSONAL_AGENT_SPEC.md)：每人一个 agent + 三层记忆 + 跨 agent 邀请制编排 + IM 管道/定时任务（**阶段 1~4 核心已实现**：lms-ai Agent 运行时 + lms-kb 个人知识库 owner 扩展；阶段 5 加固为后续项）
 - [六大业务模块设计蓝图](docs/BUSINESS_MODULES.md)：媒资 / 搜索 / 学习 / 考试 / 数据中心 / 评价互动的设计依据
 - [前后端接口契约（JSON Schema）](docs/api-schemas/README.md)：与 Java DTO 一一对应的接口数据结构定义
 - [代码注释规范](docs/CODE_COMMENT_STYLE.md)

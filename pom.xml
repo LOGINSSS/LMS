@@ -33,6 +33,7 @@
         <module>lms-learning</module>
         <module>lms-statistics</module>
         <module>lms-ai</module>
+        <module>lms-kb</module>
     </modules>
 
     <properties>
@@ -50,6 +51,9 @@
         <knife4j.version>4.5.0</knife4j.version>
         <redisson.version>3.34.1</redisson.version>
         <agentscope.version>2.0.2</agentscope.version>
+        <!-- lms-kb 多模态解析 -->
+        <poi.version>5.2.5</poi.version>
+        <pdfbox.version>3.0.3</pdfbox.version>
     </properties>
 
     <!-- ==================== 依赖版本管理（唯一版本源） ==================== -->
@@ -101,16 +105,48 @@
                 <groupId>io.agentscope</groupId>
                 <artifactId>agentscope-core</artifactId>
                 <version>${agentscope.version}</version>
-            </dependency>
-            <dependency>
+            </dependency>            <dependency>
                 <groupId>io.agentscope</groupId>
                 <artifactId>agentscope-openai-spring-boot-starter</artifactId>
                 <version>${agentscope.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-model-openai</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <!-- AgentScope ReMe 记忆扩展（阿里通义实验室记忆方案，spec §4 三层记忆对接） -->
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-reme</artifactId>
+                <version>1.0.12</version>
+            </dependency>
+            <!-- Feign multipart（media/kb 上传工具，spec §3.3） -->
+            <dependency>
+                <groupId>io.github.openfeign.form</groupId>
+                <artifactId>feign-form</artifactId>
+                <version>3.8.0</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.openfeign.form</groupId>
+                <artifactId>feign-form-spring</artifactId>
+                <version>3.8.0</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
                 <artifactId>agentscope-agui-spring-boot-starter</artifactId>
                 <version>${agentscope.version}</version>
+            </dependency>
+            <!-- lms-kb 多模态解析：docx/pptx（POI）、pdf（PDFBox） -->
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.pdfbox</groupId>
+                <artifactId>pdfbox</artifactId>
+                <version>${pdfbox.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
