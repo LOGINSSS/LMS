@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 
 /**
  * 抢课 Redis 服务（spec 0.2 §4.3~4.4）
@@ -28,7 +27,9 @@ public class GrabRedisService {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * Lua 原子抢课脚本（KEYS: [window, stock, users]  ARGV: [courseId, userId, now]）
+     * Lua 原子抢课脚本
+     * KEYS[1]=window KEYS[2]=stock KEYS[3]=users KEYS[4]=detail
+     * ARGV[1]=courseId ARGV[2]=userId ARGV[3]=now(yyyy-MM-dd HH:mm:ss)
      * 返回：0 已抢过 / -1 窗口未开或已结束 / -2 售罄 / 1 成功
      */
     private static final String LUA_GRAB =
@@ -68,9 +69,9 @@ public class GrabRedisService {
     public int grab(Long courseId, Long userId, LocalDateTime now) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(LUA_GRAB, Long.class);
         Long result = redisTemplate.execute(script,
-                Collections.singletonList(properties.windowKey(courseId)),
-                properties.windowKey(courseId), properties.stockKey(courseId),
-                properties.usersKey(courseId), properties.detailKey(courseId),
+                java.util.Arrays.asList(
+                        properties.windowKey(courseId), properties.stockKey(courseId),
+                        properties.usersKey(courseId), properties.detailKey(courseId)),
                 String.valueOf(courseId), String.valueOf(userId), now.format(FMT));
         return result == null ? -1 : result.intValue();
     }

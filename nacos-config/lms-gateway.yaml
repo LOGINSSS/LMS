@@ -32,11 +32,11 @@ spring:
           uri: lb://lms-user
           predicates:
             - Path=/users/**,/admin/users/**
-        # 课程服务：卡片展示/选课/教师管理（需登录）
+        # 课程服务：卡片展示/选课/教师管理/课程内容（0.2 目录/章节，需登录）
         - id: lms-course
           uri: lb://lms-course
           predicates:
-            - Path=/courses/**,/admin/courses/**
+            - Path=/courses/**,/admin/courses/**,/catalog/**,/admin/catalog/**
         # 媒资服务：文件/视频上传与管理（需登录；静态访问 /uploads/** 直连 8088）
         - id: lms-media
           uri: lb://lms-media
@@ -78,6 +78,11 @@ spring:
           uri: lb://lms-kb
           predicates:
             - Path=/kb/**,/rag/**,/eval/**
+        # 抢课服务（0.2）：Redis 预检库存 + Kafka 异步落库（需登录）
+        - id: lms-grab
+          uri: lb://lms-grab
+          predicates:
+            - Path=/grab/**
 
 lms:
   gateway:
