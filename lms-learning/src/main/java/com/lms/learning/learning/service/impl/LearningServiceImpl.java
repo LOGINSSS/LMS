@@ -42,8 +42,11 @@ import com.lms.learning.learning.mapper.PointsRecordMapper;
 import com.lms.learning.learning.mapper.QaQuestionMapper;
 import com.lms.learning.learning.mapper.SignInMapper;
 import com.lms.learning.learning.service.ILearningService;
+import com.lms.learning.learning.service.LearningCacheService;
+import com.lms.learning.learning.service.PointsZSetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,6 +75,9 @@ public class LearningServiceImpl implements ILearningService {
     private final AnswerMapper answerMapper;
     private final PointsRecordMapper pointsMapper;
     private final SignInMapper signInMapper;
+    private final LearningCacheService cacheService;
+    private final PointsZSetService pointsZSetService;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -128,7 +134,9 @@ public class LearningServiceImpl implements ILearningService {
         insert.setProgress(progress);
         insert.setLastLearnTime(LocalDateTime.now());
         recordMapper.insert(insert);
-        grantPoints(userId, PointsType.LEARN);
+        grantPoints(userId, PointsType.LEARN, lesson.getCourseId());
+        //4. 失效学情详情缓存（统计口径变化）
+        cacheService.evictLearnStats(userId);
     }
 
     @Override
@@ -156,6 +164,7 @@ public class LearningServiceImpl implements ILearningService {
         Note note = BeanUtils.copyBean(dto, Note.class);
         note.setUserId(userId);
         noteMapper.insert(note);
+        cacheService.evictLearnStats(userId);
         return note.getId();
     }
 
@@ -200,6 +209,7 @@ public class LearningServiceImpl implements ILearningService {
         question.setUserId(userId);
         questionMapper.insert(question);
         grantPoints(userId, PointsType.QUESTION);
+        cacheService.evictLearnStats(userId);
         return question.getId();
     }
 
@@ -245,6 +255,7 @@ public class LearningServiceImpl implements ILearningService {
         answer.setAccepted(0);
         answerMapper.insert(answer);
         grantPoints(userId, PointsType.ANSWER);
+        cacheService.evictLearnStats(userId);
         return answer.getId();
     }
 
@@ -272,6 +283,74 @@ public class LearningServiceImpl implements ILearningService {
             throw new CommonException(LearningErrorInfo.ALREADY_SIGNED);
         }
         grantPoints(userId, PointsType.SIGN_IN);
+        cacheService.evictLearnStats(userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void signInCourse(Long courseId) {
+        //1. 登录校验
+        Long userId = currentUserId();
+        LocalDate today = LocalDate.now();
+        //2. 日期边界业务（spec 0.2 §6.3）：Redis 存上次签到日期，判断今天/昨天/更早
+        //   key: sign:last:{userId}:{courseId}，value: yyyy-MM-dd
+        String key = "sign:last:" + userId + ":" + courseId;
+        String last = redisTemplate.opsForValue().get(key);
+        if (today.toString().equals(last)) {
+            // 今天已签 → 幂等拒绝
+            throw new CommonException(LearningErrorInfo.ALREADY_SIGNED);
+        }
+        //3. 落库签到记录（uk_user_course_date 并发兜底）
+        SignIn signIn = new SignIn();
+        signIn.setUserId(userId);
+        signIn.setCourseId(courseId);
+        signIn.setSignDate(today);
+        try {
+            signInMapper.insert(signIn);
+        } catch (DuplicateKeyException e) {
+            throw new CommonException(LearningErrorInfo.ALREADY_SIGNED);
+        }
+        //4. 更新 Redis 上次签到日期（判断今天/下一天用）
+        redisTemplate.opsForValue().set(key, today.toString());
+        //5. 发放课程内签到积分（ZSET 双写）
+        grantPoints(userId, PointsType.SIGN_IN, courseId);
+        cacheService.evictLearnStats(userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reportChapterRead(Long catalogId, Long courseId) {
+        //1. 登录校验
+        Long userId = currentUserId();
+        //2. 幂等：Redis Set 记录已读章节，防重复发放阅读积分
+        //   key: read:chapters:{userId}:{courseId}，member: catalogId
+        String key = "read:chapters:" + userId + ":" + courseId;
+        Long added = redisTemplate.opsForSet().add(key, String.valueOf(catalogId));
+        if (added == null || added == 0) {
+            // 已读过该章节，不重复发放
+            return;
+        }
+        //3. 发放课程内阅读积分（ZSET 双写）
+        grantPoints(userId, PointsType.READ_CHAPTER, courseId);
+    }
+
+    @Override
+    public List<PointsBoardVO> pointsBoardCourse(Long courseId, int size) {
+        //1. ZSET 实时榜（spec 0.2 §6.2），score 降序取 TopN
+        List<Map<String, Object>> rows = pointsZSetService.board(courseId, size);
+        //2. 转出参
+        return rows.stream()
+                .map(row -> new PointsBoardVO(
+                        (Long) row.get("userId"),
+                        (Long) row.get("totalPoints")))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, Object> myPointsCourse(Long courseId) {
+        //1. 我的课程积分与排名（ZSET）
+        Long userId = currentUserId();
+        return pointsZSetService.myRank(courseId, userId);
     }
 
     @Override
@@ -289,18 +368,21 @@ public class LearningServiceImpl implements ILearningService {
     @Override
     public MyLearnStatsVO myLearnStats() {
         Long userId = currentUserId();
-        MyLearnStatsVO vo = new MyLearnStatsVO();
-        //1. 个人内容数：笔记 / 提问 / 回答 / 签到（逻辑删除自动过滤）
-        vo.setNoteTotal(noteMapper.selectCount(new LambdaQueryWrapper<Note>().eq(Note::getUserId, userId)));
-        vo.setQaTotal(questionMapper.selectCount(new LambdaQueryWrapper<QaQuestion>().eq(QaQuestion::getUserId, userId)));
-        vo.setAnswerTotal(answerMapper.selectCount(new LambdaQueryWrapper<Answer>().eq(Answer::getUserId, userId)));
-        vo.setSignTotal(signInMapper.selectCount(new LambdaQueryWrapper<SignIn>().eq(SignIn::getUserId, userId)));
-        //2. 累计积分：流水求和（与积分榜同口径，IFNULL 防空表返回 0）
-        Map<String, Object> row = pointsMapper.selectMaps(new QueryWrapper<PointsRecord>()
-                .select("IFNULL(SUM(points), 0) AS total")
-                .eq("user_id", userId)).get(0);
-        vo.setPointsTotal(((Number) row.get("total")).longValue());
-        return vo;
+        //1. 走缓存（Cache-Aside，spec 0.2 §5.1），学习行为上报后失效
+        return cacheService.getLearnStats(userId, () -> {
+            MyLearnStatsVO vo = new MyLearnStatsVO();
+            //1.1 个人内容数：笔记 / 提问 / 回答 / 签到（逻辑删除自动过滤）
+            vo.setNoteTotal(noteMapper.selectCount(new LambdaQueryWrapper<Note>().eq(Note::getUserId, userId)));
+            vo.setQaTotal(questionMapper.selectCount(new LambdaQueryWrapper<QaQuestion>().eq(QaQuestion::getUserId, userId)));
+            vo.setAnswerTotal(answerMapper.selectCount(new LambdaQueryWrapper<Answer>().eq(Answer::getUserId, userId)));
+            vo.setSignTotal(signInMapper.selectCount(new LambdaQueryWrapper<SignIn>().eq(SignIn::getUserId, userId)));
+            //1.2 累计积分：流水求和（与积分榜同口径，IFNULL 防空表返回 0）
+            Map<String, Object> row = pointsMapper.selectMaps(new QueryWrapper<PointsRecord>()
+                    .select("IFNULL(SUM(points), 0) AS total")
+                    .eq("user_id", userId)).get(0);
+            vo.setPointsTotal(((Number) row.get("total")).longValue());
+            return vo;
+        });
     }
 
     @Override
@@ -321,14 +403,27 @@ public class LearningServiceImpl implements ILearningService {
     }
 
     /**
-     * 发放积分：插入积分流水（单事务内与业务操作同生共死）
+     * 发放积分：插入积分流水 + 课程内积分同步 ZINCRBY 课程榜（双写）
+     * courseId 为 null 时仅全局流水（问答/点赞等非课程行为）
      */
-    private void grantPoints(Long userId, PointsType type) {
+    private void grantPoints(Long userId, PointsType type, Long courseId) {
         PointsRecord record = new PointsRecord();
         record.setUserId(userId);
         record.setType(type.getValue());
         record.setPoints(type.getPoints());
+        record.setCourseId(courseId);
         pointsMapper.insert(record);
+        // 课程内积分：ZSET 实时榜双写（流水为权威，榜单可回源重建）
+        if (courseId != null) {
+            pointsZSetService.incr(courseId, userId, type.getPoints());
+        }
+    }
+
+    /**
+     * 发放积分（无课程维度，全局流水）
+     */
+    private void grantPoints(Long userId, PointsType type) {
+        grantPoints(userId, type, null);
     }
 
     /**

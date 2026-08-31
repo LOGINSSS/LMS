@@ -70,13 +70,14 @@ public class AdminQuestionController {
         return R.ok(questionService.queryQuestionPage(query));
     }
 
-    /** 题目绑定到业务（课程/考试），可设分值；重复绑定更新分值 */
+    /** 题目绑定到业务（1 课程 / 2 章节 / 3 考试卷），可设分值；重复绑定更新分值 */
     @PostMapping("/{id}/biz")
     @Operation(summary = "绑定题目到业务")
     public R<Void> bindToBiz(@PathVariable("id") Long id,
+                             @RequestParam("bizType") Integer bizType,
                              @RequestParam("bizId") Long bizId,
                              @RequestParam(value = "score", defaultValue = "0") Integer score) {
-        questionService.bindToBiz(id, bizId, score);
+        questionService.bindToBiz(id, bizType, bizId, score);
         return R.ok();
     }
 }

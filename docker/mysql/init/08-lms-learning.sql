@@ -84,26 +84,29 @@ CREATE TABLE IF NOT EXISTS `answer` (
 CREATE TABLE IF NOT EXISTS `points_record` (
     `id`          BIGINT   NOT NULL AUTO_INCREMENT,
     `user_id`     BIGINT   NOT NULL COMMENT '用户',
-    `type`        TINYINT  NOT NULL COMMENT '积分类型：1签到 2学习 3提问 4回答 5回答被采纳',
+    `type`        TINYINT  NOT NULL COMMENT '积分类型：1签到 2学习 3提问 4回答 5回答被采纳 6阅读章节 7考试',
     `points`      INT      NOT NULL COMMENT '积分变动（正增负减）',
+    `course_id`   BIGINT   DEFAULT NULL COMMENT '课程 id（NULL=全局流水；非空=课程内积分，计入课程积分榜 ZSET）',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted`     TINYINT  NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删 1已删',
     PRIMARY KEY (`id`),
     KEY `idx_user_id` (`user_id`),
+    KEY `idx_course_id` (`course_id`),
     KEY `idx_create_time` (`create_time`)
 ) ENGINE = InnoDB COMMENT ='积分记录表';
 
--- ---------- 签到表（每日一次） ----------
+-- ---------- 签到表（课程页每日一次，0.2 改为课程维度） ----------
 CREATE TABLE IF NOT EXISTS `sign_in` (
     `id`          BIGINT   NOT NULL AUTO_INCREMENT,
     `user_id`     BIGINT   NOT NULL COMMENT '签到用户',
+    `course_id`   BIGINT   NOT NULL DEFAULT 0 COMMENT '课程 id（0=全局历史数据）',
     `sign_date`   DATE     NOT NULL COMMENT '签到日期',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted`     TINYINT  NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删 1已删',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_date` (`user_id`, `sign_date`) COMMENT '同一用户每天一次（并发兜底）'
+    UNIQUE KEY `uk_user_course_date` (`user_id`, `course_id`, `sign_date`) COMMENT '同一用户同一课程每天一次（并发兜底）'
 ) ENGINE = InnoDB COMMENT ='签到表';
 
 -- ============================================================

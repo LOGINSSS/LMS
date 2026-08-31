@@ -10,6 +10,12 @@ spring:
     url: jdbc:mysql://localhost:13306/lms_learning?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: root
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
 
 mybatis-plus:
   configuration:
@@ -27,3 +33,6 @@ lms:
   mvc:
     # 开启用户头拦截器：学习/笔记/问答/签到/积分按当前用户归属
     user-header-enabled: true
+  cache:
+    # 学情详情缓存 TTL（分钟）
+    learn-stats-ttl-minutes: 10

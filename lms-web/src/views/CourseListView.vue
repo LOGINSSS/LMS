@@ -2,7 +2,8 @@
 // 课程列表页：卡片分页展示已发布课程；教师可建课/上下架，学生可选课
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { queryCoursePage, enrollCourse, addCourse, changeCourseStatus } from '../api/course'
+import { queryCoursePage, enrollCourse, addCourse } from '../api/course'
+import { uploadMedia } from '../api/media'
 import { isTeacher, isStudent } from '../utils/auth'
 import { useEntrance } from '../composables/useEntrance'
 import CourseCard from '../components/CourseCard.vue'
@@ -70,16 +71,6 @@ const onEnroll = async (course) => {
   }
 }
 
-// 教师发布/下架课程
-const onToggleStatus = async (course) => {
-  try {
-    await changeCourseStatus(course.id, course.status === 1 ? 0 : 1)
-    load()
-  } catch (e) {
-    alert(e.message)
-  }
-}
-
 // 教师提交建课
 const onSubmitCourse = async () => {
   if (!courseForm.name) {
@@ -93,11 +84,26 @@ const onSubmitCourse = async () => {
       intro: courseForm.intro,
       category: courseForm.category
     })
-    alert('创建成功，默认下架，请发布后学生可见')
+    alert('创建成功，默认草稿，请进入详情页编辑内容并发布')
     Object.assign(courseForm, { name: '', cover: '', intro: '', category: '' })
     showAddForm.value = false
   } catch (e) {
     alert(e.message)
+  }
+}
+
+// 封面图上传（0.2 文件上传链路：前端 → lms-media → 回填 cover url）
+const onCoverUpload = async (e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+  try {
+    const res = await uploadMedia(file)
+    courseForm.cover = res?.url || res?.data?.url || ''
+    alert('封面上传成功')
+  } catch (err) {
+    alert('封面上传失败：' + err.message)
+  } finally {
+    e.target.value = ''
   }
 }
 
@@ -131,8 +137,14 @@ onMounted(() => load())
         <input v-model="courseForm.name" placeholder="必填" />
       </div>
       <div class="form-item">
-        <label>封面图 URL</label>
-        <input v-model="courseForm.cover" placeholder="可选" />
+        <label>封面图</label>
+        <div class="cover-upload">
+          <input v-model="courseForm.cover" placeholder="封面 URL（或上传图片自动回填）" />
+          <label class="btn upload-btn">
+            上传
+            <input type="file" accept="image/*" hidden @change="onCoverUpload" />
+          </label>
+        </div>
       </div>
       <div class="form-item">
         <label>课程简介</label>
@@ -153,9 +165,7 @@ onMounted(() => load())
         <CourseCard :course="course">
           <button v-btn-fx class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
           <button v-btn-fx v-if="isStudent()" class="btn btn-primary" @click="onEnroll(course)">选课</button>
-          <button v-btn-fx v-if="isTeacher()" class="btn" @click="onToggleStatus(course)">
-            {{ course.status === 1 ? '下架' : '发布' }}
-          </button>
+          <button v-btn-fx v-if="isTeacher()" class="btn" @click="router.push(`/courses/${course.id}`)">管理</button>
         </CourseCard>
       </div>
     </div>
@@ -196,6 +206,20 @@ onMounted(() => load())
 
 .form-row .form-item {
   flex: 1;
+}
+
+.cover-upload {
+  display: flex;
+  gap: 8px;
+}
+
+.cover-upload input {
+  flex: 1;
+}
+
+.upload-btn {
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .card-grid {

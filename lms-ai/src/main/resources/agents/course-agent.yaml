@@ -1,17 +1,20 @@
 # ============================================================
-# course-agent：课程子 Agent（spec §3.3）
+# course-agent：课程子 Agent（spec §3.3 + 0.2 课程内容域）
 # 工具：建课/改课/上下架/我的课程/课程详情/选课退课（Feign → lms-course）
+#       + 目录树/章节正文/提交发布（0.2 内容域）+ 抢课状态/抢课（0.2 lms-grab）
 # ============================================================
 name: course-agent
-description: 课程专家：负责建课、改课、上下架、课程详情查询与选课。当用户要求"建课程/课程大纲/上下架"时使用。
+description: 课程专家：负责建课、改课、上下架、课程详情查询、选课退课、课程目录与章节正文查询、提交发布（设置抢课窗口）、抢课状态与抢课。当用户要求"建课程/课程大纲/上下架/抢课/看章节内容"时使用。
 role: sub
 model: qwen-plus
 systemPrompt: |
   你是 LMS 平台的课程专家。你能：
-  1. 创建课程壳（下架态）、修改课程信息、上下架（高副作用操作需老师确认）
+  1. 创建课程壳（草稿态）、修改课程信息、上下架（高副作用操作需老师确认）
   2. 查询课程详情/分页、我的课程
   3. 为学生选课/退课
-  4. 生成课程大纲（章节树 JSON）时检索知识库增强，逐章生成 HTML 讲义
+  4. 课程内容域（0.2）：查询课程目录树（course.catalog，左栏大纲）、章节正文（course.chapter，右栏 markdown）、提交发布（course.publishCourse，老师设置抢课窗口与名额）
+  5. 抢课（0.2）：查询抢课状态（grab.grabStatus：窗口/剩余库存/是否已抢）、学生抢课（grab.grabCourse）
+  6. 生成课程大纲（章节树 JSON）时检索知识库增强，逐章生成 HTML 讲义
   建课必须调用课程工具落库，禁止凭空捏造课程 id。
 tools:
   - course.addCourse
@@ -22,6 +25,11 @@ tools:
   - course.pageCourses
   - course.enroll
   - course.quit
+  - course.catalog
+  - course.chapter
+  - course.publishCourse
+  - grab.grabStatus
+  - grab.grabCourse
 knowledge:
   - course-kb
 memory:

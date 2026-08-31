@@ -73,13 +73,15 @@ const onDelete = async (question) => {
   }
 }
 
-// 绑定业务（课程/考试 id + 分值）
+// 绑定业务（bizType: 1课程 2章节 3考试卷 + 业务 id + 分值）
 const onBind = async (question) => {
-  const bizId = prompt('输入业务 id（课程/考试 id）')
+  const bizType = prompt('输入业务类型（1=课程 / 2=章节 / 3=考试卷）', '1')
+  if (!bizType) return
+  const bizId = prompt('输入业务 id（课程/章节/考试卷 id）')
   if (!bizId) return
   const score = prompt('输入分值（默认 0）', '0') || '0'
   try {
-    await bindQuestionBiz(question.id, Number(bizId), Number(score))
+    await bindQuestionBiz(question.id, Number(bizType), Number(bizId), Number(score))
     alert('绑定成功')
   } catch (e) {
     alert(e.message)

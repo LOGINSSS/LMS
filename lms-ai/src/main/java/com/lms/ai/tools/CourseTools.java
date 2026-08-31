@@ -145,4 +145,42 @@ public class CourseTools {
             ToolSupport.exit();
         }
     }
+
+    // ---------- 0.2 课程内容域工具（目录/章节/发布） ----------
+
+    @Tool(name = "catalog", description = "课程目录树（左栏大纲，章/节两级）", readOnly = true)
+    public String catalog(@ToolParam(name = "courseId", description = "课程 id") Long courseId) {
+        try {
+            return ToolSupport.json(ToolSupport.check(client.catalog(courseId)));
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        }
+    }
+
+    @Tool(name = "chapter", description = "章节正文（markdown，右栏内容）", readOnly = true)
+    public String chapter(@ToolParam(name = "catalogId", description = "章节目录节点 id") Long catalogId) {
+        try {
+            return ToolSupport.json(ToolSupport.check(client.chapter(catalogId)));
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        }
+    }
+
+    @Tool(name = "publishCourse", description = "提交课程发布（老师，设置抢课窗口与名额），grabStartTime/grabEndTime 为 ISO 时间")
+    public String publishCourse(
+            @ToolParam(name = "id", description = "课程 id") Long id,
+            @ToolParam(name = "grabStartTime", description = "抢课开始时间（如 2026-03-01T10:00:00）") String grabStartTime,
+            @ToolParam(name = "grabEndTime", description = "抢课结束时间（如 2026-03-01T12:00:00）") String grabEndTime,
+            @ToolParam(name = "stock", description = "抢课名额，0=不限", required = false) Integer stock,
+            RuntimeContext ctx) {
+        ToolSupport.enter(ctx);
+        try {
+            ToolSupport.check(client.publish(id, grabStartTime, grabEndTime, stock == null ? 0 : stock));
+            return "ok";
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        } finally {
+            ToolSupport.exit();
+        }
+    }
 }

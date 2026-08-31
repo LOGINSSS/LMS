@@ -16,6 +16,7 @@ import com.lms.exam.exam.domain.po.Question;
 import com.lms.exam.exam.domain.po.QuestionBiz;
 import com.lms.exam.exam.domain.query.QuestionPageQuery;
 import com.lms.exam.exam.domain.vo.QuestionVO;
+import com.lms.exam.exam.enums.BizType;
 import com.lms.exam.exam.enums.Difficulty;
 import com.lms.exam.exam.enums.QuestionType;
 import com.lms.exam.exam.mapper.QuestionBizMapper;
@@ -119,14 +120,16 @@ public class QuestionServiceImpl implements IQuestionService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void bindToBiz(Long questionId, Long bizId, Integer score) {
-        //1. 权限校验 + 题目存在性校验
+    public void bindToBiz(Long questionId, Integer bizType, Long bizId, Integer score) {
+        //1. 权限校验 + 题目存在性校验 + bizType 合法校验
         assertTeacher();
         getQuestionEntity(questionId);
+        AssertUtils.isTrue(BizType.of(bizType) != null, "非法的业务类型");
         //2. 查绑定记录：存在则更新分值，不存在则插入
-        //   【保障机制】幂等：uk_question_biz 唯一索引 + DuplicateKeyException 兜底并发
+        //   【保障机制】幂等：uk_question_biz 唯一索引（question_id+biz_type+biz_id）+ DuplicateKeyException 兜底并发
         QuestionBiz existed = questionBizMapper.selectOne(new LambdaQueryWrapper<QuestionBiz>()
                 .eq(QuestionBiz::getQuestionId, questionId)
+                .eq(QuestionBiz::getBizType, bizType)
                 .eq(QuestionBiz::getBizId, bizId));
         if (existed != null) {
             existed.setScore(score == null ? 0 : score);
@@ -135,6 +138,7 @@ public class QuestionServiceImpl implements IQuestionService {
         }
         QuestionBiz bind = new QuestionBiz();
         bind.setQuestionId(questionId);
+        bind.setBizType(bizType);
         bind.setBizId(bizId);
         bind.setScore(score == null ? 0 : score);
         try {
@@ -143,6 +147,7 @@ public class QuestionServiceImpl implements IQuestionService {
             // 并发兜底：撞唯一键说明已绑定，重查后更新分值
             QuestionBiz again = questionBizMapper.selectOne(new LambdaQueryWrapper<QuestionBiz>()
                     .eq(QuestionBiz::getQuestionId, questionId)
+                    .eq(QuestionBiz::getBizType, bizType)
                     .eq(QuestionBiz::getBizId, bizId));
             if (again != null) {
                 again.setScore(score == null ? 0 : score);
@@ -152,9 +157,10 @@ public class QuestionServiceImpl implements IQuestionService {
     }
 
     @Override
-    public List<QuestionVO> queryByBizId(Long bizId) {
+    public List<QuestionVO> queryByBiz(Integer bizType, Long bizId) {
         //1. 查业务下的绑定记录
         List<QuestionBiz> binds = questionBizMapper.selectList(new LambdaQueryWrapper<QuestionBiz>()
+                .eq(QuestionBiz::getBizType, bizType)
                 .eq(QuestionBiz::getBizId, bizId));
         if (CollUtils.isEmpty(binds)) {
             return Collections.emptyList();

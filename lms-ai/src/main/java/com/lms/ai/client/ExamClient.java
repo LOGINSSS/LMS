@@ -42,11 +42,17 @@ public interface ExamClient {
                                          @RequestParam(value = "pageNo", required = false) Integer pageNo,
                                          @RequestParam(value = "pageSize", required = false) Integer pageSize);
 
-    @GetMapping("/questions/biz/{bizId}")
-    R<List<Object>> queryBizQuestions(@PathVariable("bizId") Long bizId);
+    @GetMapping("/questions/biz/{bizType}/{bizId}")
+    R<List<Object>> queryBizQuestions(@PathVariable("bizType") Integer bizType,
+                                      @PathVariable("bizId") Long bizId);
+
+    /** 课程考题（bizType=1 + courseId），0.2 课程内容域 */
+    @GetMapping("/questions/biz/1/{courseId}")
+    R<List<Object>> courseQuestions(@PathVariable("courseId") Long courseId);
 
     @PostMapping("/admin/questions/{id}/biz")
     R<Void> bindToBiz(@PathVariable("id") Long id,
+                      @RequestParam("bizType") Integer bizType,
                       @RequestParam("bizId") Long bizId,
                       @RequestParam(value = "score", required = false) Integer score);
 }

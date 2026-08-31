@@ -7,6 +7,8 @@ import com.lms.common.domain.po.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
+
 /**
  * 课程实体
  *
@@ -41,6 +43,15 @@ public class Course extends BaseEntity {
     private String category;
 
 
-    /** 状态：0 已下架 / 1 已发布，取值见 CourseStatus 枚举 */
+    /** 状态：0 草稿 / 1 待发布 / 2 抢课中 / 3 进行中 / 4 已结束 / 5 已下架，取值见 CourseStatus 枚举 */
     private Integer status;
+
+    /** 抢课总名额（0=不限） */
+    private Integer stock;
+
+    /** 抢课开始时间 */
+    private LocalDateTime grabStartTime;
+
+    /** 抢课结束时间 */
+    private LocalDateTime grabEndTime;
 }

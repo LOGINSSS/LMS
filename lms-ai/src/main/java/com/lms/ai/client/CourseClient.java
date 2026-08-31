@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,4 +53,18 @@ public interface CourseClient {
     @GetMapping("/courses/enrolled")
     R<PageDTO<Object>> enrolled(@RequestParam(value = "pageNo", required = false) Integer pageNo,
                                 @RequestParam(value = "pageSize", required = false) Integer pageSize);
+
+    // ---------- 0.2 课程内容域 ----------
+
+    @GetMapping("/courses/{id}/catalog")
+    R<List<Object>> catalog(@PathVariable("id") Long courseId);
+
+    @GetMapping("/catalog/{catalogId}/chapter")
+    R<Object> chapter(@PathVariable("catalogId") Long catalogId);
+
+    @PutMapping("/admin/courses/{courseId}/publish")
+    R<Void> publish(@PathVariable("courseId") Long courseId,
+                    @RequestParam("grabStartTime") String grabStartTime,
+                    @RequestParam("grabEndTime") String grabEndTime,
+                    @RequestParam(value = "stock", defaultValue = "0") Integer stock);
 }

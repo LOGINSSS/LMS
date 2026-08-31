@@ -26,3 +26,30 @@ export const changeCourseStatus = (id, status) => request.put(`/admin/courses/${
 
 // 教师：我的课程（含未发布）
 export const queryMyCourses = (params) => request.get('/admin/courses/mine', { params })
+
+// 课程目录树（左栏大纲）
+export const getCourseCatalog = (id) => request.get(`/courses/${id}/catalog`)
+
+// 章节正文（右栏 markdown）
+export const getChapterContent = (catalogId) => request.get(`/catalog/${catalogId}/chapter`)
+
+// 教师：新增章节（章或节）
+export const addCatalogNode = (courseId, data) => request.post(`/admin/courses/${courseId}/catalog`, data)
+
+// 教师：修改章节
+export const updateCatalogNode = (catalogId, data) => request.put(`/admin/catalog/${catalogId}`, data)
+
+// 教师：删除章节（含子节与正文）
+export const deleteCatalogNode = (catalogId) => request.delete(`/admin/catalog/${catalogId}`)
+
+// 教师：保存章节正文（markdown）
+export const saveChapterContent = (catalogId, data) => request.put(`/admin/catalog/${catalogId}/chapter`, data)
+
+// 教师：提交课程发布（设置抢课窗口）
+export const publishCourse = (id, params) => request.put(`/admin/courses/${id}/publish`, null, { params })
+
+// 学生：抢课（Redis 预检 + Kafka 异步落库）
+export const grabCourse = (id) => request.post(`/grab/${id}`)
+
+// 抢课状态（窗口/剩余库存/是否已抢）
+export const getGrabStatus = (id) => request.get(`/grab/${id}/status`)

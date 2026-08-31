@@ -13,18 +13,25 @@ import com.lms.common.utils.AssertUtils;
 import com.lms.common.utils.BeanUtils;
 import com.lms.common.utils.CollUtils;
 import com.lms.common.utils.UserContext;
+import com.lms.course.course.client.GrabClient;
+import com.lms.course.course.client.KbClient;
 import com.lms.course.course.client.UserClient;
 import com.lms.course.course.client.dto.UserSimpleDTO;
 import com.lms.course.course.constants.CourseErrorInfo;
 import com.lms.course.course.domain.dto.CourseCardVO;
 import com.lms.course.course.domain.dto.CourseFormDTO;
 import com.lms.course.course.domain.po.Course;
+import com.lms.course.course.domain.po.CourseCatalog;
+import com.lms.course.course.domain.po.CourseChapter;
 import com.lms.course.course.domain.po.CourseEnrollment;
 import com.lms.course.course.domain.query.CoursePageQuery;
 import com.lms.course.course.enums.CourseStatus;
 import com.lms.course.course.enums.EnrollmentStatus;
+import com.lms.course.course.mapper.CourseCatalogMapper;
+import com.lms.course.course.mapper.CourseChapterMapper;
 import com.lms.course.course.mapper.CourseEnrollmentMapper;
 import com.lms.course.course.mapper.CourseMapper;
+import com.lms.course.course.service.CourseCacheService;
 import com.lms.course.course.service.ICourseService;
 import com.lms.course.course.domain.vo.CourseTopVO;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +40,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +62,12 @@ public class CourseServiceImpl implements ICourseService {
 
     private final CourseMapper courseMapper;
     private final CourseEnrollmentMapper enrollmentMapper;
+    private final CourseCatalogMapper catalogMapper;
+    private final CourseChapterMapper chapterMapper;
     private final UserClient userClient;
+    private final GrabClient grabClient;
+    private final KbClient kbClient;
+    private final CourseCacheService courseCacheService;
 
     /** 跨服务查询教师昵称失败时的兜底署名 */
     private static final String DEFAULT_TEACHER_NAME = "教师";
@@ -68,14 +82,23 @@ public class CourseServiceImpl implements ICourseService {
         //3. 查教师昵称：Feign 调 lms-user 取档案昵称做快照；查询失败降级为默认署名
         //   【保障机制】跨服务容错：UserClientFallbackFactory 返回 null，此处兜底，建课主流程不中断
         String teacherName = fetchTeacherName(teacherId);
-        //4. 组装并落库：新课程默认已下架，由教师手动发布后才对学生可见
+        //4. 组装并落库：新课程默认草稿（0），由教师编辑内容后提交发布
         Course course = BeanUtils.copyBean(dto, Course.class);
         course.setTeacherId(teacherId);
         course.setTeacherName(teacherName);
-        course.setStatus(CourseStatus.OFFLINE.getValue());
+        course.setStatus(CourseStatus.DRAFT.getValue());
+        if (course.getStock() == null) {
+            course.setStock(0);
+        }
         if (courseMapper.insert(course) <= 0) {
             throw new CommonException(CourseErrorInfo.COURSE_SAVE_FAILED);
         }
+        //5. 自动创建课程知识库（spec 0.2 §8.1，幂等；失败降级不阻断建课）
+        Map<String, Object> kbBody = new java.util.HashMap<>();
+        kbBody.put("courseId", course.getId());
+        kbBody.put("ownerType", 1);
+        kbBody.put("name", course.getName());
+        kbClient.createKb(kbBody);
         return course.getId();
     }
 
@@ -90,6 +113,8 @@ public class CourseServiceImpl implements ICourseService {
         if (courseMapper.updateById(update) <= 0) {
             throw new CommonException(CourseErrorInfo.COURSE_SAVE_FAILED);
         }
+        //3. 失效课程详情缓存
+        courseCacheService.evictCourseDetail(id);
     }
 
     @Override
@@ -97,16 +122,79 @@ public class CourseServiceImpl implements ICourseService {
     public void changeStatus(Long id, Integer status) {
         //1. 校验课程存在且为当前教师本人创建
         Course course = getOwnCourse(id);
-        //2. 状态落库：目标状态取 CourseStatus 枚举值（0 下架 / 1 发布）
+        //2. 状态落库：目标状态取 CourseStatus 枚举值（0 草稿 / 1 待发布 / 2 抢课中 / 3 进行中 / 4 已结束 / 5 下架）
         Course update = new Course();
         update.setId(course.getId());
         update.setStatus(status);
         courseMapper.updateById(update);
+        //3. 失效课程详情缓存
+        courseCacheService.evictCourseDetail(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void publish(Long id, LocalDateTime grabStartTime, LocalDateTime grabEndTime, Integer stock) {
+        //1. 校验课程存在且为当前教师本人创建
+        Course course = getOwnCourse(id);
+        //2. 抢课窗口校验：开始时间必须早于结束时间，且未过期
+        if (grabStartTime == null || grabEndTime == null || !grabStartTime.isBefore(grabEndTime)) {
+            throw new CommonException(CourseErrorInfo.GRAB_WINDOW_INVALID);
+        }
+        //3. 落库：进入待发布（抢课窗口到点后由定时任务流转为抢课中）
+        Course update = new Course();
+        update.setId(course.getId());
+        update.setStock(stock == null ? 0 : stock);
+        update.setGrabStartTime(grabStartTime);
+        update.setGrabEndTime(grabEndTime);
+        update.setStatus(CourseStatus.PENDING_GRAB.getValue());
+        courseMapper.updateById(update);
+        //4. 通知 lms-grab 预热库存（失败降级不阻断发布，见 GrabClientFallbackFactory）
+        grabClient.prepare(course.getId(),
+                grabStartTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                grabEndTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                stock == null ? 0 : stock);
+        //5. 失效课程详情缓存
+        courseCacheService.evictCourseDetail(id);
+        //6. 课程正文一键同步入知识库（spec 0.2 §8.1，失败降级不阻断发布）
+        String md = buildCourseMarkdown(course.getId());
+        if (md != null && !md.isBlank()) {
+            Map<String, String> syncBody = new java.util.HashMap<>();
+            syncBody.put("mdText", md);
+            kbClient.syncCourseText(course.getId(), syncBody);
+        }
+    }
+
+    /**
+     * 拼接课程目录+章节正文为一份 markdown（课程正文同步入知识库用）
+     */
+    private String buildCourseMarkdown(Long courseId) {
+        StringBuilder sb = new StringBuilder();
+        List<CourseCatalog> nodes = catalogMapper.selectList(new LambdaQueryWrapper<CourseCatalog>()
+                .eq(CourseCatalog::getCourseId, courseId)
+                .orderByAsc(CourseCatalog::getSort));
+        if (CollUtils.isEmpty(nodes)) {
+            return null;
+        }
+        for (CourseCatalog node : nodes) {
+            if (node.getParentId() == null || node.getParentId() == 0L) {
+                // 章
+                sb.append("\n# ").append(node.getName()).append("\n");
+            } else {
+                // 节
+                sb.append("\n## ").append(node.getName()).append("\n");
+            }
+            CourseChapter chapter = chapterMapper.selectOne(new LambdaQueryWrapper<CourseChapter>()
+                    .eq(CourseChapter::getCatalogId, node.getId()));
+            if (chapter != null && chapter.getContentMd() != null) {
+                sb.append(chapter.getContentMd()).append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     @Override
     public PageDTO<CourseCardVO> queryPublishedPage(CoursePageQuery query) {
-        //1. 分页查询已发布课程：前台卡片列表只展示 status=1 的课程
+        //1. 分页查询可被学生看到的课程：抢课中/进行中（status 2/3）
         Page<Course> page = query.toMpPageDefaultSortByCreateTimeDesc();
         courseMapper.selectPage(page, publishedWrapper(query));
         //2. 转卡片 VO 并填充实时选课人数
@@ -117,16 +205,21 @@ public class CourseServiceImpl implements ICourseService {
 
     @Override
     public CourseCardVO getCourseDetail(Long id) {
-        //1. 查课程：不存在或未发布均视为不可见（对前台统一拒绝）
-        Course course = courseMapper.selectById(id);
-        AssertUtils.notNull(course, CourseErrorInfo.COURSE_NOT_FOUND.getMsg());
-        if (course.getStatus() == null || course.getStatus() != CourseStatus.PUBLISHED.getValue()) {
-            throw new CommonException(CourseErrorInfo.COURSE_NOT_PUBLISHED);
-        }
-        //2. 转卡片 VO 并填充选课人数
-        CourseCardVO vo = BeanUtils.copyBean(course, CourseCardVO.class);
-        fillTotalCount(Collections.singletonList(vo));
-        return vo;
+        //1. 走缓存：命中直接返回，未命中回源并回填（Cache-Aside，spec 0.2 §5.1）
+        return courseCacheService.getCourseDetail(id, () -> {
+            //1.1 查课程：不存在或未开放（非 2/3）均视为不可见（对前台统一拒绝）
+            Course course = courseMapper.selectById(id);
+            AssertUtils.notNull(course, CourseErrorInfo.COURSE_NOT_FOUND.getMsg());
+            if (course.getStatus() == null
+                    || (course.getStatus() != CourseStatus.GRABBING.getValue()
+                    && course.getStatus() != CourseStatus.ONGOING.getValue())) {
+                throw new CommonException(CourseErrorInfo.COURSE_NOT_PUBLISHED);
+            }
+            //1.2 转卡片 VO 并填充选课人数
+            CourseCardVO vo = BeanUtils.copyBean(course, CourseCardVO.class);
+            fillTotalCount(Collections.singletonList(vo));
+            return vo;
+        });
     }
 
     @Override
@@ -149,11 +242,16 @@ public class CourseServiceImpl implements ICourseService {
     public void enroll(Long courseId) {
         //1. 身份校验：仅学生可选课
         Long studentId = assertStudent();
-        //2. 校验课程存在且已发布：未发布课程不可选
+        //2. 校验课程存在且已开放：草稿/待发布/下架不可选；抢课窗口内的课程走抢课接口
         Course course = courseMapper.selectById(courseId);
         AssertUtils.notNull(course, CourseErrorInfo.COURSE_NOT_FOUND.getMsg());
-        if (course.getStatus() == null || course.getStatus() != CourseStatus.PUBLISHED.getValue()) {
+        if (course.getStatus() == null
+                || (course.getStatus() != CourseStatus.GRABBING.getValue()
+                && course.getStatus() != CourseStatus.ONGOING.getValue())) {
             throw new CommonException(CourseErrorInfo.COURSE_NOT_PUBLISHED);
+        }
+        if (course.getStatus() == CourseStatus.GRABBING.getValue() && course.getStock() != null && course.getStock() > 0) {
+            throw new CommonException(CourseErrorInfo.GRAB_REQUIRED);
         }
         //3. 幂等处理：查该课程下选课记录（任意状态）
         //   选课中 → 报已选；已退课 → 复用记录翻回选课中（避免撞 uk_course_student 唯一键）
@@ -228,11 +326,12 @@ public class CourseServiceImpl implements ICourseService {
     }
 
     /**
-     * 已发布课程的分页查询条件（前台卡片列表）
+     * 可被学生看到的课程分页查询条件（前台卡片列表）
+     * 可见状态：2 抢课中 / 3 进行中
      */
     private LambdaQueryWrapper<Course> publishedWrapper(CoursePageQuery query) {
         LambdaQueryWrapper<Course> wrapper = new LambdaQueryWrapper<Course>()
-                .eq(Course::getStatus, CourseStatus.PUBLISHED.getValue());
+                .in(Course::getStatus, CourseStatus.GRABBING.getValue(), CourseStatus.ONGOING.getValue());
         applyFilter(wrapper, query);
         return wrapper;
     }

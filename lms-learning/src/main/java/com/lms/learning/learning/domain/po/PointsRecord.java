@@ -24,9 +24,12 @@ public class PointsRecord extends BaseEntity {
     /** 用户（lms_user.user.id） */
     private Long userId;
 
-    /** 积分类型：1签到 2学习 3提问 4回答 5被采纳，取值见 PointsType 枚举 */
+    /** 积分类型：1签到 2学习 3提问 4回答 5被采纳 6阅读章节 7考试，取值见 PointsType 枚举 */
     private Integer type;
 
     /** 积分变动（正增负减） */
     private Integer points;
+
+    /** 课程 id（NULL=全局流水；非空=课程内积分，同步计入课程积分榜 ZSET） */
+    private Long courseId;
 }

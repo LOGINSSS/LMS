@@ -12,6 +12,7 @@ import java.util.List;
  *
  * 承载题目增删改查、题目与业务绑定、按业务取题；
  * 权限约定：题目管理（建/改/删/绑）仅限教师。
+ * 0.2 扩展：绑定维度从「仅 bizId」升级为「bizType + bizId」（1 课程 / 2 章节 / 3 考试卷）。
  */
 public interface IQuestionService {
 
@@ -55,19 +56,21 @@ public interface IQuestionService {
     PageDTO<QuestionVO> queryQuestionPage(QuestionPageQuery query);
 
     /**
-     * 教师把题目绑定到业务（课程/考试），可设分值；重复绑定更新分值
+     * 教师把题目绑定到业务（课程/章节/考试卷），可设分值；重复绑定更新分值
      *
      * @param questionId 题目 id
+     * @param bizType    业务类型（1 课程 / 2 章节 / 3 考试卷）
      * @param bizId      业务 id
      * @param score      分值（默认 0）
      */
-    void bindToBiz(Long questionId, Long bizId, Integer score);
+    void bindToBiz(Long questionId, Integer bizType, Long bizId, Integer score);
 
     /**
      * 按业务取题（考试/练习用，只含启用题）
      *
-     * @param bizId 业务 id
+     * @param bizType 业务类型（1 课程 / 2 章节 / 3 考试卷）
+     * @param bizId   业务 id
      * @return 启用题目列表
      */
-    List<QuestionVO> queryByBizId(Long bizId);
+    List<QuestionVO> queryByBiz(Integer bizType, Long bizId);
 }

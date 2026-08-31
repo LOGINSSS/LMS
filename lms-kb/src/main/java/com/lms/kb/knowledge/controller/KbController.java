@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
+
 /**
  * 知识库管理接口
  *
@@ -42,6 +44,14 @@ public class KbController {
     @Operation(summary = "创建知识库（默认课程库：owner_type=1；传 ownerType=2 为个人库）")
     public R<Long> createKb(@RequestBody @Valid KbFormDTO dto) {
         return R.ok(kbService.createKb(dto));
+    }
+
+    /** 课程正文文本同步入库（spec 0.2 §8.1：课程发布后一键同步章节正文，服务间调用） */
+    @PostMapping("/internal/courses/{courseId}/sync-text")
+    @Operation(summary = "课程正文同步入知识库（服务间）")
+    public R<Long> syncCourseText(@PathVariable("courseId") Long courseId,
+                                  @RequestBody Map<String, String> body) {
+        return R.ok(kbService.syncCourseText(courseId, body.get("mdText")));
     }
 
     @GetMapping("/course/{courseId}")

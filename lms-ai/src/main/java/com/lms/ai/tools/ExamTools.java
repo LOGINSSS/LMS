@@ -104,24 +104,27 @@ public class ExamTools {
         }
     }
 
-    @Tool(name = "queryBizQuestions", description = "按业务（课程/考试 bizId）查询已绑定题目", readOnly = true)
-    public String queryBizQuestions(@ToolParam(name = "bizId", description = "业务 id（课程/考试）") Long bizId) {
+    @Tool(name = "queryBizQuestions", description = "按业务查询已绑定题目（bizType: 1课程 2章节 3考试卷）", readOnly = true)
+    public String queryBizQuestions(
+            @ToolParam(name = "bizType", description = "业务类型：1课程 2章节 3考试卷") Integer bizType,
+            @ToolParam(name = "bizId", description = "业务 id（课程/章节/考试卷 id）") Long bizId) {
         try {
-            return ToolSupport.json(ToolSupport.check(client.queryBizQuestions(bizId)));
+            return ToolSupport.json(ToolSupport.check(client.queryBizQuestions(bizType, bizId)));
         } catch (Exception e) {
             return ToolSupport.fail(e);
         }
     }
 
-    @Tool(name = "bindToBiz", description = "把题目绑定到业务（课程/考试，老师），score 分值默认0")
+    @Tool(name = "bindToBiz", description = "把题目绑定到业务（bizType: 1课程 2章节 3考试卷，老师），score 分值默认0")
     public String bindToBiz(
             @ToolParam(name = "id", description = "题目 id") Long id,
-            @ToolParam(name = "bizId", description = "业务 id（课程/考试）") Long bizId,
+            @ToolParam(name = "bizType", description = "业务类型：1课程 2章节 3考试卷") Integer bizType,
+            @ToolParam(name = "bizId", description = "业务 id（课程/章节/考试卷 id）") Long bizId,
             @ToolParam(name = "score", description = "分值，默认0", required = false) Integer score,
             RuntimeContext ctx) {
         ToolSupport.enter(ctx);
         try {
-            ToolSupport.check(client.bindToBiz(id, bizId, score));
+            ToolSupport.check(client.bindToBiz(id, bizType, bizId, score));
             return "ok";
         } catch (Exception e) {
             return ToolSupport.fail(e);

@@ -10,6 +10,32 @@ spring:
     url: jdbc:mysql://localhost:13306/lms_course?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: root
+  kafka:
+    bootstrap-servers: localhost:29092
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
+
+lms:
+  grab:
+    # 抢课成功事件 topic（lms-grab 生产者同名）
+    topic: lms-grab-success
+  cache:
+    # 课程详情/大纲/正文缓存 TTL（分钟）
+    course-detail-ttl-minutes: 30
+    catalog-ttl-minutes: 30
+    chapter-ttl-minutes: 60
+  mvc:
+    # 开启用户头拦截器：解析网关透传的 user-info 头到 UserContext（教师/学生身份识别）
+    user-header-enabled: true
 
 mybatis-plus:
   configuration:
@@ -23,8 +49,3 @@ springdoc:
   group-configs:
     - group: course
       packages-to-scan: com.lms.course.controller
-
-lms:
-  mvc:
-    # 开启用户头拦截器：解析网关透传的 user-info 头到 UserContext（教师/学生身份识别）
-    user-header-enabled: true

@@ -4,6 +4,8 @@ import com.lms.ai.chat.AgentChatService;
 import com.lms.ai.config.ImProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,7 +25,11 @@ public class ImService {
 
     private final ImProperties properties;
     private final List<ImChannel> channels;
-    private final AgentChatService chatService;
+
+    /** @Lazy 打破循环依赖：ImService → AgentChatService → PersonalAgentFactory → ToolFactory → ImTools → ImService */
+    @Autowired
+    @Lazy
+    private AgentChatService chatService;
 
     /** 当前启用的渠道（按配置选择，未知渠道回落 console） */
     public ImChannel channel() {

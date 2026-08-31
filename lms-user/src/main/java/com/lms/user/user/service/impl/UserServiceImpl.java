@@ -21,6 +21,7 @@ import com.lms.user.user.mapper.StudentInfoMapper;
 import com.lms.user.user.mapper.TeacherInfoMapper;
 import com.lms.user.user.mapper.UserMapper;
 import com.lms.user.user.service.IUserService;
+import com.lms.user.user.service.UserCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class UserServiceImpl implements IUserService {
     private final UserMapper userMapper;
     private final TeacherInfoMapper teacherInfoMapper;
     private final StudentInfoMapper studentInfoMapper;
+    private final UserCacheService cacheService;
 
     /**
      * 创建用户档案（幂等 + 事务）
@@ -186,6 +188,8 @@ public class UserServiceImpl implements IUserService {
         } else if (userType != null && userType == UserType.STUDENT.getValue()) {
             updateStudentInfo(userId, dto);
         }
+        //5. 失效用户信息缓存（各模块 Feign 读缓存，改后需主动删）
+        cacheService.evict(userId);
     }
 
     /**
@@ -200,13 +204,16 @@ public class UserServiceImpl implements IUserService {
      */
     @Override
     public UserDetailVO getUserDetail(Long id) {
-        //1. 按 id 查询档案：查不到直接抛 USER_NOT_FOUND，避免返回空详情
-        User user = userMapper.selectById(id);
-        if (user == null) {
-            throw new CommonException(UserErrorInfo.USER_NOT_FOUND);
-        }
-        //2. 组装详情 VO：主表字段 + 按 userType 查对应扩展表填充
-        return toDetailVO(user);
+        //1. 走缓存（Cache-Aside，spec 0.2 §5.1）：命中直接返回，未命中回源并回填
+        return cacheService.getUserDetail(id, () -> {
+            //1.1 按 id 查询档案：查不到直接抛 USER_NOT_FOUND，避免返回空详情
+            User user = userMapper.selectById(id);
+            if (user == null) {
+                throw new CommonException(UserErrorInfo.USER_NOT_FOUND);
+            }
+            //1.2 组装详情 VO：主表字段 + 按 userType 查对应扩展表填充
+            return toDetailVO(user);
+        });
     }
 
     /**

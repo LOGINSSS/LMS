@@ -24,16 +24,17 @@ CREATE TABLE IF NOT EXISTS `question` (
     KEY `idx_type_category` (`type`, `category`)
 ) ENGINE = InnoDB COMMENT ='题目表';
 
--- ---------- 题目-业务绑定表（题目归属哪个课程/考试，含分值） ----------
+-- ---------- 题目-业务绑定表（题目归属哪个课程/章节/考试卷，含分值） ----------
 CREATE TABLE IF NOT EXISTS `question_biz` (
     `id`          BIGINT   NOT NULL AUTO_INCREMENT,
     `question_id` BIGINT   NOT NULL COMMENT '题目 id',
-    `biz_id`      BIGINT   NOT NULL COMMENT '业务 id（课程/考试 id）',
+    `biz_type`    TINYINT  NOT NULL DEFAULT 1 COMMENT '业务类型：1 课程 / 2 章节 / 3 考试卷',
+    `biz_id`      BIGINT   NOT NULL COMMENT '业务 id（biz_type=1 为课程 id；2 为章节目录 id；3 为考试卷 id）',
     `score`       INT      NOT NULL DEFAULT 0 COMMENT '该业务下题目分值',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted`     TINYINT  NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删 1已删',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_question_biz` (`question_id`, `biz_id`) COMMENT '同一题目在业务下唯一',
-    KEY `idx_biz_id` (`biz_id`)
+    UNIQUE KEY `uk_question_biz` (`question_id`, `biz_type`, `biz_id`) COMMENT '同一题目在同一业务类型下唯一',
+    KEY `idx_biz` (`biz_type`, `biz_id`)
 ) ENGINE = InnoDB COMMENT ='题目-业务绑定表';

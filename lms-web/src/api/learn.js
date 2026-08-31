@@ -25,5 +25,16 @@ export const signIn = () => request.post('/points/sign-in')
 export const myPoints = (params) => request.get('/points/records', { params })
 export const pointsBoard = (params) => request.get('/points/board', { params })
 
+// ---------- 0.2 课程积分/签到/阅读 ----------
+// 课程页签到（课程维度，判断今天/下一天）
+export const signInCourse = (courseId) => request.post(`/points/courses/${courseId}/sign-in`)
+// 课程积分实时榜 TopN（ZSET）
+export const coursePointsBoard = (courseId, params) => request.get(`/points/courses/${courseId}/board`, { params })
+// 我的课程积分与排名（ZSET）
+export const myCoursePoints = (courseId) => request.get(`/points/courses/${courseId}/me`)
+// 上报章节阅读（首次阅读发积分，幂等）
+export const reportChapterRead = (courseId, catalogId) =>
+  request.post(`/points/courses/${courseId}/chapters/${catalogId}/read`)
+
 // ---------- 我的学习统计（首页学习概览）----------
 export const myLearnStats = () => request.get('/learn/stats/my')

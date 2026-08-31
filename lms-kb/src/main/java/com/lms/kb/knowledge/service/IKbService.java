@@ -44,4 +44,15 @@ public interface IKbService {
 
     /** 删除知识库（按归属，个人库） */
     void deleteKbByOwner(Integer ownerType, Long ownerId);
+
+    /**
+     * 课程正文文本同步入知识库（spec 0.2 §8.1：课程发布后一键同步章节正文）
+     *
+     * 把课程目录+章节 markdown 拼成一份文本，落为 .md 文档走入库管道。
+     *
+     * @param courseId 课程 id
+     * @param mdText   拼接后的 markdown 全文
+     * @return 文档 id
+     */
+    Long syncCourseText(Long courseId, String mdText);
 }

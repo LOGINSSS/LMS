@@ -1,0 +1,50 @@
+# ============================================================
+# lms-grab 抢课服务配置（0.2 新增模块）
+# 用途：抢课 Redis 预检库存 + Kafka 异步落库（spec 0.2 §4）
+# 推送：scripts/push-nacos-config.ps1
+# ============================================================
+server:
+  port: 8097
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:13306/lms_grab?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
+  kafka:
+    bootstrap-servers: localhost:29092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: grab
+      packages-to-scan: com.lms.grab.controller
+
+lms:
+  mvc:
+    # 开启用户头拦截器：解析网关透传 user-info 头到 UserContext（学生身份识别）
+    user-header-enabled: true
+  grab:
+    # 抢课成功事件 Kafka topic（lms-course 消费端异步落库 course_enrollment）
+    topic: lms-grab-success
+    # 抢课窗口 Redis key 前缀
+    window-key-prefix: grab:window
+    stock-key-prefix: grab:stock
+    users-key-prefix: grab:users
+    detail-key-prefix: grab:detail

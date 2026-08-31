@@ -1,8 +1,9 @@
 <script setup>
-// 根组件：顶部导航（按角色区分菜单）+ 路由出口
+// 根组件：顶部导航（按角色区分菜单）+ 路由出口 + 全局 AI 聊天浮窗
 import { useRouter } from 'vue-router'
 import { isTeacher, isStudent, getUsername, clearAuth } from './utils/auth'
 import { logout } from './api/auth'
+import AiChatWidget from './components/AiChatWidget.vue'
 
 const router = useRouter()
 
@@ -58,6 +59,8 @@ const handleLogout = async () => {
         </transition>
       </router-view>
     </main>
+    <!-- 全局 AI 聊天浮窗（0.2 AI 入口） -->
+    <AiChatWidget />
   </div>
 </template>
 

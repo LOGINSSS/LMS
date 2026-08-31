@@ -34,6 +34,7 @@
         <module>lms-statistics</module>
         <module>lms-ai</module>
         <module>lms-kb</module>
+        <module>lms-grab</module>
     </modules>
 
     <properties>

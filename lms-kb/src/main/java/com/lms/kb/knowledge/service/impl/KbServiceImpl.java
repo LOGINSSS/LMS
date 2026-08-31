@@ -210,6 +210,46 @@ public class KbServiceImpl implements IKbService {
 
     @Override
     @Transactional
+    public Long syncCourseText(Long courseId, String mdText) {
+        //1. 课程知识库存在性校验（不存在则自动建库，幂等）
+        KnowledgeBase kb = kbMapper.selectOne(ownerWrapper(OWNER_COURSE, courseId));
+        if (kb == null) {
+            KbFormDTO dto = new KbFormDTO();
+            dto.setCourseId(courseId);
+            dto.setOwnerType(OWNER_COURSE);
+            dto.setName("课程" + courseId + "知识库");
+            kb = kbMapper.selectById(createKb(dto));
+        }
+        if (kb.getStatus() == null || kb.getStatus() != 1) {
+            throw new CommonException(KbErrorInfo.KB_DISABLED);
+        }
+        //2. 正文拼为 .md 文档落库（待解析），触发入库管道
+        KnowledgeDoc doc = new KnowledgeDoc();
+        doc.setKbId(kb.getId());
+        doc.setOwnerType(kb.getOwnerType());
+        doc.setOwnerId(kb.getOwnerId());
+        doc.setCourseId(kb.getCourseId());
+        doc.setFileName("课程正文.md");
+        doc.setFileType("md");
+        doc.setStatus(0);
+        doc.setChunkCount(0);
+        docMapper.insert(doc);
+        try {
+            Path dir = Path.of(kbProperties.getDataDir());
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve(doc.getId() + ".md"), mdText == null ? "" : mdText);
+        } catch (Exception e) {
+            throw new CommonException(KbErrorInfo.DOC_PROCESS_FAILED.getCode(),
+                    "正文保存失败: " + e.getMessage());
+        }
+        docPipelineService.processDoc(doc.getId());
+        kb.setDocCount((kb.getDocCount() == null ? 0 : kb.getDocCount()) + 1);
+        kbMapper.updateById(kb);
+        return doc.getId();
+    }
+
+    @Override
+    @Transactional
     public void deleteKbByOwner(Integer ownerType, Long ownerId) {
         KnowledgeBase kb = getEntityByOwnerOrThrow(ownerType, ownerId);
         // 删 ES 切片（按归属）

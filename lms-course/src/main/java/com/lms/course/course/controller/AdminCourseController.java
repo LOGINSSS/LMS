@@ -12,7 +12,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,11 +52,22 @@ public class AdminCourseController {
         return R.ok();
     }
 
-    /** 教师上下架自己创建的课程：status=1 发布 / 0 下架 */
+    /** 教师上下架自己创建的课程：status 取值见 CourseStatus 枚举 */
     @PutMapping("/{id}/status")
     @Operation(summary = "上下架课程")
     public R<Void> changeStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status) {
         courseService.changeStatus(id, status);
+        return R.ok();
+    }
+
+    /** 教师提交课程发布（设置抢课窗口与名额，进入待发布） */
+    @PutMapping("/{id}/publish")
+    @Operation(summary = "提交课程发布（设置抢课窗口）")
+    public R<Void> publish(@PathVariable("id") Long id,
+                           @RequestParam("grabStartTime") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime grabStartTime,
+                           @RequestParam("grabEndTime") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime grabEndTime,
+                           @RequestParam(value = "stock", defaultValue = "0") Integer stock) {
+        courseService.publish(id, grabStartTime, grabEndTime, stock);
         return R.ok();
     }
 

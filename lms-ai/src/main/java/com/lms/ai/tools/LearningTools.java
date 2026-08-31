@@ -180,4 +180,58 @@ public class LearningTools {
             ToolSupport.exit();
         }
     }
+
+    // ---------- 0.2 课程签到/积分榜（课程页） ----------
+
+    @Tool(name = "courseSignIn", description = "课程页签到（当前用户，一天一次，+5 积分计入该课程）")
+    public String courseSignIn(@ToolParam(name = "courseId", description = "课程 id") Long courseId, RuntimeContext ctx) {
+        ToolSupport.enter(ctx);
+        try {
+            ToolSupport.check(client.signInCourse(courseId));
+            return "ok";
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        } finally {
+            ToolSupport.exit();
+        }
+    }
+
+    @Tool(name = "pointsBoardCourse", description = "课程积分实时榜 TopN（ZSET，score 降序）", readOnly = true)
+    public String pointsBoardCourse(
+            @ToolParam(name = "courseId", description = "课程 id") Long courseId,
+            @ToolParam(name = "size", description = "条数，默认10", required = false) Integer size) {
+        try {
+            return ToolSupport.json(ToolSupport.check(client.pointsBoardCourse(courseId, size)));
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        }
+    }
+
+    @Tool(name = "myCoursePoints", description = "我的课程积分与排名", readOnly = true)
+    public String myCoursePoints(@ToolParam(name = "courseId", description = "课程 id") Long courseId, RuntimeContext ctx) {
+        ToolSupport.enter(ctx);
+        try {
+            return ToolSupport.json(ToolSupport.check(client.myPointsCourse(courseId)));
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        } finally {
+            ToolSupport.exit();
+        }
+    }
+
+    @Tool(name = "reportChapterRead", description = "上报章节阅读（首次阅读 +2 积分计入该课程，幂等）")
+    public String reportChapterRead(
+            @ToolParam(name = "courseId", description = "课程 id") Long courseId,
+            @ToolParam(name = "catalogId", description = "章节目录节点 id") Long catalogId,
+            RuntimeContext ctx) {
+        ToolSupport.enter(ctx);
+        try {
+            ToolSupport.check(client.reportChapterRead(courseId, catalogId));
+            return "ok";
+        } catch (Exception e) {
+            return ToolSupport.fail(e);
+        } finally {
+            ToolSupport.exit();
+        }
+    }
 }

@@ -2,7 +2,7 @@
 // 我的课程页：学生看选过的课，教师看自己创建的课（含未发布，可上下架）
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { queryEnrolledCourses, queryMyCourses, changeCourseStatus } from '../api/course'
+import { queryEnrolledCourses, queryMyCourses } from '../api/course'
 import { isTeacher } from '../utils/auth'
 import { useEntrance } from '../composables/useEntrance'
 import CourseCard from '../components/CourseCard.vue'
@@ -42,16 +42,6 @@ const onPageChange = ({ pageNo, pageSize }) => {
   load()
 }
 
-// 教师上下架自己创建的课程
-const onToggleStatus = async (course) => {
-  try {
-    await changeCourseStatus(course.id, course.status === 1 ? 0 : 1)
-    load()
-  } catch (e) {
-    alert(e.message)
-  }
-}
-
 onMounted(load)
 </script>
 
@@ -64,9 +54,7 @@ onMounted(load)
       <div v-for="course in list" :key="course.id">
         <CourseCard :course="course">
           <button v-btn-fx class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
-          <button v-btn-fx v-if="isTeacher()" class="btn" @click="onToggleStatus(course)">
-            {{ course.status === 1 ? '下架' : '发布' }}
-          </button>
+          <button v-btn-fx v-if="isTeacher()" class="btn btn-primary" @click="router.push(`/courses/${course.id}`)">管理</button>
         </CourseCard>
       </div>
     </div>

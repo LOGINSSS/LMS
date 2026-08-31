@@ -75,4 +75,20 @@ public interface LearningClient {
 
     @GetMapping("/points/board")
     R<List<Object>> pointsBoard(@RequestParam(value = "size", required = false) Integer size);
+
+    // ---------- 0.2 课程积分/签到 ----------
+
+    @PostMapping("/points/courses/{courseId}/sign-in")
+    R<Void> signInCourse(@PathVariable("courseId") Long courseId);
+
+    @GetMapping("/points/courses/{courseId}/board")
+    R<List<Object>> pointsBoardCourse(@PathVariable("courseId") Long courseId,
+                                      @RequestParam(value = "size", required = false) Integer size);
+
+    @GetMapping("/points/courses/{courseId}/me")
+    R<Object> myPointsCourse(@PathVariable("courseId") Long courseId);
+
+    @PostMapping("/points/courses/{courseId}/chapters/{catalogId}/read")
+    R<Void> reportChapterRead(@PathVariable("courseId") Long courseId,
+                              @PathVariable("catalogId") Long catalogId);
 }

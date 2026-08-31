@@ -29,7 +29,7 @@
 ├─ 业务层（每模块独立库 lms_<domain>）───────────────────┤
 │ lms-user · lms-course · lms-media · lms-remark        │
 │ lms-search · lms-exam · lms-learning · lms-statistics  │
-│ lms-ai                                                │
+│ lms-ai · lms-kb · lms-grab                            │
 ├─ 公共层 ───────────────────────────────────────────────┤
 │ lms-common（统一响应/异常/分页/JWT/UserContext/自动配置）│
 ├─ 前端 ─────────────────────────────────────────────────┤
@@ -57,7 +57,9 @@
 | lms-exam | 8092 | lms_exam | 题目管理（单选 / 多选 / 判断）、题库业务绑定 | [lms-exam/README.md](lms-exam/README.md) |
 | lms-learning | 8093 | lms_learning | 课次 / 学习记录 / 笔记 / 互动问答 / 签到 / 积分与积分榜 | [lms-learning/README.md](lms-learning/README.md) |
 | lms-statistics | 8094 | lms_statistics | 数据看板：总览 / 今日数据 / Top10，跨服务 Feign 聚合 | [lms-statistics/README.md](lms-statistics/README.md) |
-| lms-ai | 8095 | lms_ai（L1 会话/L2 画像/任务）+ Redis | AgentScope Java + DashScope：单轮对话 + **个人 Agent 体系**（个人/子 Agent、三层记忆、邀请制编排、IM 管道、定时任务） | [lms-ai/README.md](lms-ai/README.md) |
+| lms-ai | 8095 | lms_ai（L1 会话/L2 画像/任务）+ Redis | AgentScope Java + DashScope：单轮对话 + **个人 Agent 体系**（个人/子 Agent、三层记忆、邀请制编排、IM 管道、定时任务）+ 学习评测管道（0.2 工具面扩展） | [lms-ai/README.md](lms-ai/README.md) |
+| lms-kb | 8096 | lms_kb + ES lms_kb_chunk | 知识库（课程/个人）+ RAG 五步流水线 + RAGAS 评测；0.2 课程正文同步入知识库 | [lms-kb/README.md](lms-kb/README.md) |
+| lms-grab | 8097 | lms_grab + Redis | **抢课（0.2 新增）**：Redis Lua 预检库存 + Kafka 异步落库 + 对账回补 | — |
 
 ### 公共层
 

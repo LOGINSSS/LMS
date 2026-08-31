@@ -26,10 +26,11 @@ public class QuestionController {
 
     private final IQuestionService questionService;
 
-    /** 按业务取题（只含启用题，供考试/练习使用） */
-    @GetMapping("/biz/{bizId}")
+    /** 按业务取题（1 课程 / 2 章节 / 3 考试卷，只含启用题，供考试/练习使用） */
+    @GetMapping("/biz/{bizType}/{bizId}")
     @Operation(summary = "按业务取题")
-    public R<List<QuestionVO>> queryByBizId(@PathVariable("bizId") Long bizId) {
-        return R.ok(questionService.queryByBizId(bizId));
+    public R<List<QuestionVO>> queryByBiz(@PathVariable("bizType") Integer bizType,
+                                          @PathVariable("bizId") Long bizId) {
+        return R.ok(questionService.queryByBiz(bizType, bizId));
     }
 }

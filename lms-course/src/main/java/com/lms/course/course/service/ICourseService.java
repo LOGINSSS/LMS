@@ -6,6 +6,7 @@ import com.lms.course.course.domain.dto.CourseFormDTO;
 import com.lms.course.course.domain.query.CoursePageQuery;
 import com.lms.course.course.domain.vo.CourseTopVO;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -38,10 +39,21 @@ public interface ICourseService {
      * 教师上下架自己创建的课程
      *
      * @param id     课程 id
-     * @param status 目标状态（0 下架 / 1 发布），取值见 CourseStatus 枚举
+     * @param status 目标状态，取值见 CourseStatus 枚举
      * @throws CommonException 课程不存在、非本人课程
      */
     void changeStatus(Long id, Integer status);
+
+    /**
+     * 教师提交课程发布（进入待发布，抢课窗口到点后自动流转抢课中）
+     *
+     * @param id            课程 id
+     * @param grabStartTime 抢课开始时间
+     * @param grabEndTime   抢课结束时间
+     * @param stock         抢课名额（0=不限）
+     * @throws CommonException 课程不存在、非本人课程、窗口时间不合法
+     */
+    void publish(Long id, LocalDateTime grabStartTime, LocalDateTime grabEndTime, Integer stock);
 
     /**
      * 前台课程卡片分页（只展示已发布课程，附实时选课人数）

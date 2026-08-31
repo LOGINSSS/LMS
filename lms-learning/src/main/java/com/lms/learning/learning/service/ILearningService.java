@@ -16,6 +16,7 @@ import com.lms.learning.learning.domain.vo.PointsVO;
 import com.lms.learning.learning.domain.vo.QaQuestionVO;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 学习过程业务服务
@@ -124,6 +125,38 @@ public interface ILearningService {
      * 每日签到（一天一次，发放签到积分）
      */
     void signIn();
+
+    /**
+     * 课程页签到（0.2 课程维度，一天一次；判断今天/昨天/更早决定连续天数）
+     *
+     * @param courseId 课程 id
+     */
+    void signInCourse(Long courseId);
+
+    /**
+     * 上报章节阅读（首次阅读发放阅读积分，幂等）
+     *
+     * @param catalogId 章节目录节点 id
+     * @param courseId  课程 id
+     */
+    void reportChapterRead(Long catalogId, Long courseId);
+
+    /**
+     * 课程积分实时榜 TopN（ZSET，score 降序）
+     *
+     * @param courseId 课程 id
+     * @param size     返回条数
+     * @return 榜单条目列表（userId + totalPoints）
+     */
+    List<PointsBoardVO> pointsBoardCourse(Long courseId, int size);
+
+    /**
+     * 我的课程积分与排名（ZSET）
+     *
+     * @param courseId 课程 id
+     * @return 我的积分与排名
+     */
+    Map<String, Object> myPointsCourse(Long courseId);
 
     /**
      * 我的积分明细（分页，按时间倒序）
