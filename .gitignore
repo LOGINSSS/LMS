@@ -29,3 +29,7 @@ uploads/
 
 # ===== JMeter 压测产物（采样 jtl / HTML 报告，不入库）=====
 scripts/jmeter/reports/
+
+# ===== 文档（设计文档 / API 契约 / RAG 参考实现，一律不入库）=====
+docs/
+scripts/ragas-eval/
