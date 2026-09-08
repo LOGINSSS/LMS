@@ -1,32 +1,10 @@
 <script setup>
 // 根组件：顶部导航（按角色区分菜单）+ 路由出口 + 全局 AI 聊天浮窗
-import { useRouter } from 'vue-router'
-import { isTeacher, isStudent, getUsername, clearAuth } from './utils/auth'
-import { logout } from './api/auth'
+// 导航原则：媒资/日历为业务能力并入页面内（日历在首页，媒资为上传工具），不再单列；
+// 题库/出卷随课程走（我的课程 → 课程管理）；考试/作业按角色分流（学生待办 / 教师发布台）
+import { isTeacher } from './utils/auth'
+import UserMenu from './components/UserMenu.vue'
 import AiChatWidget from './components/AiChatWidget.vue'
-
-const router = useRouter()
-
-// 当前用户身份标签：教师 / 学生
-const roleLabel = () => {
-  if (isTeacher()) return '教师'
-  if (isStudent()) return '学生'
-  return ''
-}
-
-// 顶部昵称展示（来自登录态缓存）
-const username = getUsername()
-
-// 退出登录：调后端把 token 加入黑名单，本地清登录态后回登录页
-const handleLogout = async () => {
-  try {
-    await logout()
-  } catch (e) {
-    // 登出接口失败不阻塞本地登出
-  }
-  clearAuth()
-  router.push('/login')
-}
 </script>
 
 <template>
@@ -36,18 +14,14 @@ const handleLogout = async () => {
         <router-link to="/home" class="brand">LMS 在线学习平台</router-link>
         <nav class="nav">
           <router-link to="/home">首页</router-link>
-          <router-link to="/courses">课程</router-link>
-          <router-link to="/search">搜索推荐</router-link>
+          <router-link to="/courses">课程广场</router-link>
           <router-link to="/my">我的课程</router-link>
           <router-link to="/learn">学习中心</router-link>
-          <router-link to="/medias">媒资</router-link>
-          <router-link v-if="isTeacher()" to="/admin/questions">题库</router-link>
+          <router-link to="/exam-schedules">{{ isTeacher() ? '考试/作业发布' : '考试/作业' }}</router-link>
           <router-link v-if="isTeacher()" to="/dashboard">数据看板</router-link>
         </nav>
         <div class="user-area">
-          <span class="username">{{ username }}</span>
-          <span class="role-tag">{{ roleLabel() }}</span>
-          <button v-btn-fx class="btn" @click="handleLogout">退出登录</button>
+          <UserMenu />
         </div>
       </div>
     </header>
@@ -124,21 +98,6 @@ const handleLogout = async () => {
   align-items: center;
   gap: 12px;
   white-space: nowrap;
-}
-
-.username {
-  font-size: 14px;
-  color: #333;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.role-tag {
-  padding: 2px 10px;
-  border-radius: 10px;
-  background: #ecf5ff;
-  color: #409eff;
-  font-size: 13px;
+  flex-shrink: 0;
 }
 </style>

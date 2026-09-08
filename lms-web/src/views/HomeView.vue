@@ -6,11 +6,12 @@ import { ref, computed, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUserMe } from '../api/user'
 import { queryEnrolledCourses, queryMyCourses } from '../api/course'
-import { myLearnStats, getCourseProgress } from '../api/learn'
+import { myLearnStats, getCourseProgress, homeworkExamStats } from '../api/learn'
 import { myInterests } from '../api/search'
 import { getDashboard } from '../api/statistics'
 import { getUsername, isTeacher, isStudent } from '../utils/auth'
 import { useEntrance } from '../composables/useEntrance'
+import CalendarBoard from '../components/CalendarBoard.vue'
 
 const router = useRouter()
 
@@ -52,18 +53,18 @@ const personaLines = computed(() => {
 // 入口卡片配色（循环取色，禁 emoji，用色块区分模块）
 const TONES = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#9c27b0', '#00bcd4']
 
-// 功能入口：公共入口 + 教师专属入口（题库/看板）
+// 功能入口：公共入口 + 角色专属入口（搜索推荐已并入课程广场；媒资/日历已并入业务上下文与首页，不再单列）
 const entranceList = computed(() => {
   const list = [
-    { title: '课程广场', desc: '浏览全部课程并选课', to: '/courses' },
-    { title: '搜索推荐', desc: '关键词搜索与兴趣推荐', to: '/search' },
-    { title: '我的课程', desc: isTeacherRole ? '我创建的课程' : '我选过的课程', to: '/my' },
-    { title: '学习中心', desc: '课次学习 / 笔记 / 问答 / 签到 / 积分', to: '/learn' },
-    { title: '媒资中心', desc: '文件与视频上传管理', to: '/medias' }
+    { title: '课程广场', desc: '浏览 / 关键词搜索 / 兴趣推荐并选课', to: '/courses' },
+    { title: '我的课程', desc: isTeacherRole ? '我创建的课程（题库/出卷在课程内）' : '我选过的课程', to: '/my' },
+    { title: '学习中心', desc: '课次学习 / 笔记 / 问答 / 签到 / 积分', to: '/learn' }
   ]
   if (isTeacherRole) {
-    list.push({ title: '题库管理', desc: '题目维护与业务绑定', to: '/admin/questions' })
+    list.push({ title: '考试/作业发布', desc: '新建考试与作业 · 管理已发布排期', to: '/exam-schedules' })
     list.push({ title: '数据看板', desc: '平台数据总览与排行榜', to: '/dashboard' })
+  } else {
+    list.push({ title: '我的考试/作业', desc: '待做考试与作业作答', to: '/exam-schedules' })
   }
   return list.map((e, i) => ({ ...e, tone: TONES[i % TONES.length] }))
 })
@@ -89,6 +90,9 @@ async function loadStats() {
 // 学生学习概览：累计积分 / 我的笔记 / 我的提问 + 最近学习进度（已选课程前 3 门逐门取进度）
 const learnOverview = ref({ points: null, noteTotal: null, qaTotal: null, progresses: [] })
 
+// 作业/考试结果（来源 3/4 聚合：题量/答对/得分率 + 最近记录）
+const hwExam = ref(null)
+
 // 进度条填充：数据就绪后置 true 触发 scaleX 过渡（只动 transform）
 const showProgress = ref(false)
 
@@ -101,11 +105,13 @@ async function loadStudentData() {
       return null
     }
   }
-  const [myStats, enrolled, tags] = await Promise.all([
+  const [myStats, enrolled, tags, hwe] = await Promise.all([
     settle(() => myLearnStats()),
     settle(() => queryEnrolledCourses({ pageNo: 1, pageSize: 3 })),
-    settle(() => myInterests())
+    settle(() => myInterests()),
+    settle(() => homeworkExamStats())
   ])
+  hwExam.value = hwe
   // 画像卡统计
   stats.value[0].value = enrolled?.total ?? null
   stats.value[1].value = myStats?.pointsTotal ?? null
@@ -163,7 +169,7 @@ onMounted(async () => {
           <p class="contact-line">
             <span v-if="profile?.phone">{{ profile.phone }}</span>
             <span v-if="profile?.email">{{ profile.email }}</span>
-            <span v-if="!profile?.phone && !profile?.email">完善个人资料，让同学更了解你</span>
+            <span v-if="!profile?.phone && !profile?.email">资料待完善 · 点击右上角昵称完善个人资料</span>
           </p>
         </div>
         <div class="profile-actions">
@@ -177,6 +183,15 @@ onMounted(async () => {
           <span>{{ s.label }}</span>
         </div>
       </div>
+    </section>
+
+    <!-- 日历：紧随个人卡片展示（完整版见 /calendar） -->
+    <section class="panel">
+      <div class="home-cal-head">
+        <h3 class="section-title">我的日历 / 课表</h3>
+        <router-link v-btn-fx class="btn cal-more" to="/calendar">完整日历 ›</router-link>
+      </div>
+      <CalendarBoard embedded />
     </section>
 
     <!-- 学生学习概览：积分 + 最近学习进度（仅学生） -->
@@ -206,6 +221,22 @@ onMounted(async () => {
         </div>
       </div>
       <p v-else class="empty-tip">还没有学习记录，去课程广场选一门课开始学习吧</p>
+
+      <!-- 作业 / 考试结果（学生）：来源 3/4 聚合 + 最近记录 -->
+      <div v-if="hwExam" class="hw-exam">
+        <h4 class="sub-title">作业 / 考试结果</h4>
+        <div class="learn-metrics">
+          <div v-for="(label, key) in { homework: '作业', exam: '考试' }" :key="key" class="learn-metric">
+            <b>{{ hwExam[key]?.total ?? 0 }}</b>
+            <span>{{ label }}（答对 {{ hwExam[key]?.correct ?? 0 }} · 正确率 {{ hwExam[key]?.rate ?? 0 }}%）</span>
+          </div>
+        </div>
+        <div v-if="hwExam.recent && hwExam.recent.length" class="recent-list">
+          <span v-for="r in hwExam.recent.slice(0, 6)" :key="r.id" class="recent-item">
+            {{ r.source === 3 ? '作业' : '考试' }} · {{ r.correct === 1 ? '✓' : '✗' }} · {{ (r.createTime || '').slice(0, 16) }}
+          </span>
+        </div>
+      </div>
     </section>
 
     <!-- 角色功能入口 -->
@@ -311,6 +342,23 @@ onMounted(async () => {
   padding-top: 14px;
 }
 
+/* 首页日历 */
+.home-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.home-cal-head .section-title {
+  margin-bottom: 0;
+}
+
+.cal-more {
+  font-size: 13px;
+  padding: 4px 12px;
+}
+
 .stat {
   flex: 1;
   display: flex;
@@ -414,6 +462,33 @@ onMounted(async () => {
 .empty-tip {
   font-size: 13px;
   color: #999;
+}
+
+/* 作业/考试结果 */
+.sub-title {
+  font-size: 14px;
+  margin: 6px 0 10px;
+}
+
+.hw-exam {
+  border-top: 1px solid #f0f2f5;
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+.recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recent-item {
+  font-size: 12px;
+  color: #666;
+  background: #f7f9fc;
+  border: 1px solid #eceff4;
+  border-radius: 4px;
+  padding: 2px 8px;
 }
 
 /* 功能入口 */

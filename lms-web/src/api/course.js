@@ -1,5 +1,11 @@
 import request from './request'
 
+// 课程分类标签列表（全局共享；教师建课/学生筛选下拉）
+export const listCategories = () => request.get('/courses/categories')
+
+// 新增课程分类（教师；所有教师可见）
+export const addCategory = (name) => request.post('/admin/courses/categories', { name })
+
 // 课程卡片分页（已发布）：返回 { total, list }
 export const queryCoursePage = (params) => request.get('/courses/page', { params })
 
@@ -17,6 +23,9 @@ export const queryEnrolledCourses = (params) => request.get('/courses/enrolled',
 
 // 教师：添加课程
 export const addCourse = (data) => request.post('/admin/courses', data)
+
+// 教师：删除课程（级联选课/目录/章节 + 清理该课程 RAG 知识库）
+export const deleteCourse = (id) => request.delete(`/admin/courses/${id}`)
 
 // 教师：修改课程（仅本人）
 export const updateCourse = (id, data) => request.put(`/admin/courses/${id}`, data)

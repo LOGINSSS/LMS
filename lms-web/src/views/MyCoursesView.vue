@@ -54,7 +54,7 @@ onMounted(load)
       <div v-for="course in list" :key="course.id">
         <CourseCard :course="course">
           <button v-btn-fx class="btn" @click="router.push(`/courses/${course.id}`)">详情</button>
-          <button v-btn-fx v-if="isTeacher()" class="btn btn-primary" @click="router.push(`/courses/${course.id}`)">管理</button>
+          <button v-btn-fx v-if="isTeacher()" class="btn btn-primary" @click="router.push(`/courses/${course.id}/manage`)">管理</button>
         </CourseCard>
       </div>
     </div>

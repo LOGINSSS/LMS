@@ -1,12 +1,13 @@
 <script setup>
 // 课程详情页：课程信息 + 点赞 + 课次学习 + 笔记 + 互动问答 + 两栏大纲（目录/正文）
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import { getCourseDetail, enrollCourse, quitCourse, changeCourseStatus, publishCourse, getCourseCatalog, getChapterContent, addCatalogNode, deleteCatalogNode, saveChapterContent, grabCourse, getGrabStatus } from '../api/course'
 import { toggleLike, likeStatus } from '../api/like'
 import { listLessons, recordLearning, listNotes, addNote, listQuestions, askQuestion, answerQuestion, signInCourse, coursePointsBoard, myCoursePoints, reportChapterRead } from '../api/learn'
 import { isTeacher, isStudent } from '../utils/auth'
+import { queryQuestionsByBiz, queryMyPapers, queryMySchedules } from '../api/exam'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,8 +34,24 @@ let gsapCtx = null
 const load = async () => {
   try {
     course.value = await getCourseDetail(route.params.id)
-    await Promise.all([loadLikes(), loadLessons(), loadNotes(), loadQuestions(), loadCatalog(), loadGrabStatus(), loadCoursePoints()])
+    await Promise.all([
+      loadLikes(),
+      loadLessons(),
+      // 学习笔记仅学生（教师无记笔记场景，详情页不展示）
+      isStudent() ? loadNotes() : Promise.resolve(),
+      loadQuestions(),
+      loadCatalog(),
+      loadGrabStatus(),
+      loadCoursePoints()
+    ])
+    computeBaseReadiness()
+    if (isTeacher()) loadExamReadiness()
     await nextTick()
+    // 消息通知等带锚点跳转时，定位到对应区块
+    if (route.hash) {
+      const el = document.querySelector(route.hash)
+      if (el) el.scrollIntoView({ behavior: 'smooth' })
+    }
     gsapCtx = gsap.context(() => {
       gsap.fromTo(panelEl.value,
         { y: 20, opacity: 0 },
@@ -95,9 +112,16 @@ const onSubmitNote = async () => {
 
 // 问答
 const loadQuestions = async () => {
-  const data = await listQuestions({ courseId: route.params.id, pageNo: 1, pageSize: 20 })
+  // 教师端需要看全量以便筛“待回答”，取更多
+  const size = isTeacher() ? 100 : 20
+  const data = await listQuestions({ courseId: route.params.id, pageNo: 1, pageSize: size })
   questions.value = data.list
 }
+
+// 待回答的问题 = 尚无任何回答（教师端展示）
+const pendingQuestions = computed(() =>
+  (questions.value || []).filter((q) => !(q.answers && q.answers.length))
+)
 
 const onSubmitQuestion = async () => {
   if (!qaForm.value.title.trim()) return
@@ -267,24 +291,127 @@ const statusText = computed(() => {
   return map[course.value?.status] || '未知'
 })
 
-const onToggleStatus = async () => {
+// ---- 教师发布：内容就绪度（仅提醒，不拦截）+ 抢课发布表单 ----
+
+const showPublishForm = ref(false)
+
+const publishForm = reactive({
+  grabStart: '',
+  grabEnd: '',
+  stock: '0'
+})
+
+/** 就绪度统计：封面/简介/分类/章节目录/课次/本课程题目/卷面/考试作业排期 */
+const readiness = reactive({
+  loaded: false,
+  cover: false,
+  intro: false,
+  category: false,
+  chapters: 0,
+  sections: 0,
+  lessons: 0,
+  questions: 0,
+  papers: 0,
+  schedules: 0
+})
+
+/** 基础就绪项（课程信息 + 目录树/课次，本地即可统计） */
+const computeBaseReadiness = () => {
+  const c = course.value
+  if (!c) return
+  readiness.cover = !!c.cover
+  readiness.intro = !!(c.intro && c.intro.trim())
+  readiness.category = !!c.category
+  const chapters = (catalog.value || []).filter((n) => n.level !== 2)
+  readiness.chapters = chapters.length
+  readiness.sections = (catalog.value || []).reduce((s, n) => s + (n.children?.length || 0), 0)
+  readiness.lessons = (lessons.value || []).length
+}
+
+/** 跨服务聚合统计（仅教师，单个接口失败不阻塞页面） */
+const loadExamReadiness = async () => {
+  const settle = async (fn) => {
+    try { return await fn() } catch (e) { return -1 }
+  }
+  const id = Number(route.params.id)
+  const [qs, papers, scheds] = await Promise.all([
+    settle(() => queryQuestionsByBiz(1, id)),
+    settle(() => queryMyPapers()),
+    settle(() => queryMySchedules())
+  ])
+  readiness.questions = Array.isArray(qs) ? qs.length : 0
+  readiness.papers = Array.isArray(papers) ? papers.filter((p) => Number(p.courseId) === id).length : 0
+  readiness.schedules = Array.isArray(scheds)
+    ? scheds.filter((s) => String(s.courseIds || '').split(',').map((x) => x.trim()).includes(String(id))).length
+    : 0
+  readiness.loaded = true
+}
+
+/** 就绪度清单（教师查看，仅提示不拦截发布） */
+const readinessItems = computed(() => {
+  const r = readiness
+  const list = [
+    { ok: r.cover, label: '封面图' },
+    { ok: r.intro, label: '课程简介' },
+    { ok: r.category, label: '课程分类' },
+    { ok: r.chapters > 0, label: `章节目录（${r.chapters} 章 / ${r.sections} 节）` },
+    { ok: r.lessons > 0, label: `课次（${r.lessons} 个）` }
+  ]
+  if (r.loaded) {
+    list.push({ ok: r.questions >= 0, label: `本课程题目 ${r.questions >= 0 ? r.questions : '未知'}` })
+    list.push({ ok: r.papers >= 0, label: `本课程卷面 ${r.papers >= 0 ? r.papers : '未知'}` })
+    list.push({ ok: r.schedules >= 0, label: `本课程考试/作业排期 ${r.schedules >= 0 ? r.schedules : '未知'}` })
+  }
+  return list
+})
+
+const unreadyTip = computed(() => {
+  const missing = readinessItems.value.filter((i) => !i.ok).map((i) => i.label)
+  return missing.length ? `发布前建议完善：${missing.join('、')}` : ''
+})
+
+/** 打开/收起发布表单 */
+const onTogglePublish = () => {
+  showPublishForm.value = !showPublishForm.value
+  if (showPublishForm.value) {
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const defStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+    if (!publishForm.grabStart) publishForm.grabStart = defStart
+    if (!publishForm.grabEnd) {
+      const end = new Date(now.getTime() + 24 * 3600 * 1000)
+      publishForm.grabEnd = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`
+    }
+  }
+}
+
+/** 提交抢课发布：0 草稿 → 1 待发布（开始时间到自动 2 抢课中） */
+const submitPublish = async () => {
+  const iso = (v) => (v && v.length === 16 ? v + ':00' : v)
+  const start = iso(publishForm.grabStart)
+  const end = iso(publishForm.grabEnd)
+  if (!start || !end) {
+    alert('请选择抢课开始/结束时间')
+    return
+  }
+  if (start >= end) {
+    alert('抢课开始时间必须早于结束时间')
+    return
+  }
+  const stock = Math.max(0, parseInt(publishForm.stock, 10) || 0)
   try {
-    await changeCourseStatus(course.value.id, course.value.status === 3 ? 5 : 3)
+    await publishCourse(course.value.id, { grabStartTime: start, grabEndTime: end, stock })
+    alert('已提交发布（待发布）。抢课窗口开放后学生可见，结束时自动转为进行中')
+    showPublishForm.value = false
     load()
   } catch (e) {
     alert(e.message)
   }
 }
 
-const onPublish = async () => {
-  const start = prompt('抢课开始时间（格式 2026-03-01T10:00:00）')
-  if (!start) return
-  const end = prompt('抢课结束时间（格式 2026-03-01T12:00:00）')
-  if (!end) return
-  const stock = prompt('抢课名额（0=不限）', '100') || '0'
+const onToggleStatus = async () => {
   try {
-    await publishCourse(course.value.id, { grabStartTime: start, grabEndTime: end, stock: Number(stock) })
-    alert('发布成功（待抢课窗口开放）')
+    await changeCourseStatus(course.value.id, course.value.status === 3 ? 5 : 3)
     load()
   } catch (e) {
     alert(e.message)
@@ -386,12 +513,9 @@ onUnmounted(() => {
         <button v-btn-fx v-if="isStudent() && course.status !== 2" class="btn btn-primary" @click="onEnroll">选课</button>
         <button v-btn-fx v-if="isStudent() && course.status === 3" class="btn" @click="onSignInCourse">课程签到（+5 积分）</button>
         <button v-btn-fx v-if="isStudent()" class="btn btn-danger" @click="onQuit">退课</button>
-        <button v-btn-fx v-if="isTeacher()" class="btn" @click="onToggleStatus">
-          {{ course.status === 3 ? '下架' : '上线' }}
-        </button>
-        <button v-btn-fx v-if="isTeacher() && course.status === 0" class="btn btn-primary" @click="onPublish">
-          提交发布（设置抢课窗口）
-        </button>
+        <router-link v-btn-fx v-if="isTeacher()" class="btn btn-primary" :to="`/courses/${course.id}/manage`">
+          管理本课程（信息/发布/题库/出卷/知识库）
+        </router-link>
       </div>
     </div>
 
@@ -463,7 +587,8 @@ onUnmounted(() => {
       </ul>
     </div>
 
-    <div class="detail-panel">
+    <!-- 学习笔记（仅学生） -->
+    <div v-if="isStudent()" class="detail-panel">
       <h3 class="section-title">学习笔记</h3>
       <div class="note-form">
         <input v-model="noteContent" placeholder="记录你的学习笔记..." @keyup.enter="onSubmitNote" />
@@ -475,7 +600,24 @@ onUnmounted(() => {
       </ul>
     </div>
 
-    <div class="detail-panel">
+    <!-- 教师：待回答的学生问题（替代互动问答） -->
+    <div v-if="isTeacher()" id="qa-pending" class="detail-panel">
+      <div class="outline-header">
+        <h3 class="section-title">待回答的学生问题（{{ pendingQuestions.length }}）</h3>
+        <button v-btn-fx class="btn" @click="loadQuestions">刷新</button>
+      </div>
+      <div v-if="!pendingQuestions.length" class="empty-tip">
+        暂无待回答的问题，学生提问后这里会实时提醒。
+      </div>
+      <div v-for="q in pendingQuestions" :key="q.id" class="qa-item">
+        <p class="qa-title">{{ q.title }} <span class="qa-sub">by 学生 #{{ q.userId }} · {{ (q.createTime || '').slice(0, 16) }}</span></p>
+        <p v-if="q.content" class="qa-content">{{ q.content }}</p>
+        <button v-btn-fx class="btn btn-primary" @click="onAnswer(q)">回答问题</button>
+      </div>
+    </div>
+
+    <!-- 互动问答（仅学生） -->
+    <div v-if="isStudent()" class="detail-panel">
       <h3 class="section-title">互动问答（提问 +3 积分）</h3>
       <div class="qa-form">
         <input v-model="qaForm.title" placeholder="问题标题" />
@@ -509,6 +651,75 @@ onUnmounted(() => {
 
 .back-btn {
   margin-bottom: 16px;
+}
+
+/* ---- 教师发布面板：就绪度 + 表单 ---- */
+.draft-tip {
+  font-size: 12px;
+  color: #e6a23c;
+}
+
+.ready-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+
+.ready-item {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: #f0f2f5;
+  color: #666;
+}
+
+.ready-ok {
+  background: #f0f9eb;
+  color: #67c23a;
+}
+
+.ready-miss {
+  background: #fdf6ec;
+  color: #e6a23c;
+}
+
+.ready-warn {
+  font-size: 13px;
+  color: #e6a23c;
+  margin: 4px 0 10px;
+}
+
+.pub-note {
+  font-size: 13px;
+  color: #888;
+  margin: 0 0 12px;
+}
+
+.pub-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pub-row label {
+  flex: 0 0 130px;
+  font-size: 13px;
+  color: #555;
+}
+
+.pub-row input {
+  flex: 0 0 260px;
+  padding: 6px 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.pub-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .cover {

@@ -38,3 +38,6 @@ export const reportChapterRead = (courseId, catalogId) =>
 
 // ---------- 我的学习统计（首页学习概览）----------
 export const myLearnStats = () => request.get('/learn/stats/my')
+
+// 作业/考试结果统计（来源 3 作业 / 4 考试）：题量/答对/得分 + 最近记录
+export const homeworkExamStats = () => request.get('/learn/stats/homework-exam')

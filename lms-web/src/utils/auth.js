@@ -8,6 +8,9 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY)
 
 export const getUsername = () => localStorage.getItem(USERNAME_KEY) || ''
 
+// 资料完善后同步更新缓存的昵称（顶栏即时生效）
+export const setUsername = (name) => localStorage.setItem(USERNAME_KEY, name ?? '')
+
 export const getUserType = () => Number(localStorage.getItem(USER_TYPE_KEY))
 
 export const isTeacher = () => getUserType() === 2
