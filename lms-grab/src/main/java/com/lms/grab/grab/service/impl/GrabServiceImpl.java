@@ -38,6 +38,26 @@ public class GrabServiceImpl implements IGrabService {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    private final com.lms.grab.grab.client.CourseAccessClient courseAccessClient;
+
+    /** 抢课前资格强校验（课程 enroll_rule；course 服务异常时 fail-closed 拒绝，规则优先） */
+    private void checkEligibility(Long courseId) {
+        try {
+            var r = courseAccessClient.eligibility(courseId);
+            java.util.Map<String, Object> data = r == null || !r.success() ? null : r.getData();
+            boolean allowed = data != null && Boolean.TRUE.equals(data.get("allowed"));
+            if (allowed) {
+                return;
+            }
+            String reasons = data == null ? "资格不符" : String.valueOf(data.get("reasons"));
+            throw new CommonException("不符合本课程抢课条件：" + reasons);
+        } catch (CommonException ce) {
+            throw ce;
+        } catch (Exception e) {
+            throw new CommonException("选课资格校验服务暂不可用，请稍后再试");
+        }
+    }
+
     @Override
     public void prepare(Long courseId, String grabStartTime, String grabEndTime, Integer stock) {
         //1. 时间格式校验（ISO 转字符串）
@@ -57,6 +77,10 @@ public class GrabServiceImpl implements IGrabService {
         Long userId = UserContext.getUser();
         AssertUtils.isNotNull(userId, "请先登录");
         LocalDateTime now = LocalDateTime.now();
+
+        //1.5 选课资格强校验（课程 enroll_rule，如 限大三/已修完先修课/积分达标）：
+        //    抢课 Redis 预检前拦截，防绕过规则；course 服务不可用时 fail-closed 拒绝（规则优先）
+        checkEligibility(courseId);
 
         //2. Redis 原子预检：窗口 + 去重 + 扣减（单次往返）
         int result = grabRedis.grab(courseId, userId, now);

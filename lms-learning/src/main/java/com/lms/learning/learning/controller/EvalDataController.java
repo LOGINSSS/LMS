@@ -66,4 +66,10 @@ public class EvalDataController {
     public R<DiagnosisVO> diagnosis() {
         return R.ok(evalDataService.diagnosis(UserContext.getUser()));
     }
+
+    @GetMapping("/stats/homework-exam")
+    @Operation(summary = "作业/考试结果统计（来源 3/4：题量/答对/得分 + 最近记录）")
+    public R<java.util.Map<String, Object>> homeworkExamStats() {
+        return R.ok(evalDataService.homeworkExamStats(UserContext.getUser()));
+    }
 }

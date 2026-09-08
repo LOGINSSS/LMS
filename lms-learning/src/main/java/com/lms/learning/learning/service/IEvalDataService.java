@@ -27,4 +27,7 @@ public interface IEvalDataService {
 
     /** 学情聚合（诊断智能体输入：做题/正确率/知识点掌握/薄弱点/活跃度） */
     DiagnosisVO diagnosis(Long userId);
+
+    /** 作业/考试结果统计（来源 3 作业 / 4 考试：题量/答对/得分率 + 最近记录） */
+    java.util.Map<String, Object> homeworkExamStats(Long userId);
 }

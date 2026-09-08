@@ -45,10 +45,14 @@ public class ExerciseRecord extends BaseEntity {
     /** 本题得分 */
     private Integer score;
 
-    /** 来源：1练习 2测评 */
+    /** 来源：1练习 2测评 3作业 4考试 */
     private Integer source;
 
     /** 来源常量 */
     public static final int SOURCE_EXERCISE = 1;
     public static final int SOURCE_ASSESSMENT = 2;
+    /** 作业作答回流（lms-exam 判分后推送） */
+    public static final int SOURCE_HOMEWORK = 3;
+    /** 考试作答回流（lms-exam 判分后推送；专用 Kafka 提交轨上线后同样落此来源） */
+    public static final int SOURCE_EXAM = 4;
 }
