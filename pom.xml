@@ -35,6 +35,7 @@
         <module>lms-ai</module>
         <module>lms-kb</module>
         <module>lms-grab</module>
+        <module>lms-calendar</module>
     </modules>
 
     <properties>

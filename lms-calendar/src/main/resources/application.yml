@@ -1,0 +1,24 @@
+server:
+  port: 8098
+
+spring:
+  application:
+    name: lms-calendar
+  config:
+    import:
+      - optional:nacos:lms-common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - optional:nacos:lms-calendar.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yaml
+        group: DEFAULT_GROUP
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0

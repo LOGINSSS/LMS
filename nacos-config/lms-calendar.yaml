@@ -1,0 +1,17 @@
+# ============================================================
+# lms-calendar 统一日历聚合服务配置（只读聚合：排课/考试/作业 → 统一事件 + Redis 缓存）
+# ============================================================
+server:
+  port: 8098
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+      database: 0
+
+lms:
+  mvc:
+    user-header-enabled: true   # 解析网关 user-info 头 → UserContext（Feign 透传用）
