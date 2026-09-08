@@ -1,6 +1,6 @@
 # LMS - 微服务练手项目
 
-基于 Spring Cloud Alibaba 的微服务练手项目：课程学习平台，覆盖「认证 → 课程 → 媒资 → 评价互动 → 搜索 → 题库 → 学习过程 → 数据看板 → AI 对话」完整业务链路。前后端分离，每个业务模块**独立库 `lms_<domain>`、独立 Nacos 配置、经网关统一鉴权路由**。
+基于 Spring Cloud Alibaba 的微服务练手项目：课程学习平台，覆盖「认证 → 课程（浏览/选课/内容/题库/出卷/考试作业/知识库）→ 媒资（文件工具）→ 互动 → 学习过程 → 日历 → 数据看板 → AI 对话」完整业务链路。前后端分离，每个业务模块**独立库 `lms_<domain>`、独立 Nacos 配置、经网关统一鉴权路由**。
 
 架构与版本体系对齐 `java-microservice-structure` 技能包。
 
@@ -29,7 +29,7 @@
 ├─ 业务层（每模块独立库 lms_<domain>）───────────────────┤
 │ lms-user · lms-course · lms-media · lms-remark        │
 │ lms-search · lms-exam · lms-learning · lms-statistics  │
-│ lms-ai · lms-kb · lms-grab                            │
+│ lms-ai · lms-kb · lms-grab · lms-calendar             │
 ├─ 公共层 ───────────────────────────────────────────────┤
 │ lms-common（统一响应/异常/分页/JWT/UserContext/自动配置）│
 ├─ 前端 ─────────────────────────────────────────────────┤
@@ -50,16 +50,17 @@
 | 模块 | 端口 | 库 / 存储 | 职责 | 文档 |
 |---|---|---|---|---|
 | lms-user | 8086 | lms_user | 用户档案：公共字段 + 学生 / 教师扩展，管理端分页 | [lms-user/README.md](lms-user/README.md) |
-| lms-course | 8087 | lms_course | 课程卡片展示、教师建课与上下架、学生选课退课 | [lms-course/README.md](lms-course/README.md) |
-| lms-media | 8088 | lms_media | 文件 / 视频上传与媒资管理，统一存储抽象（本地磁盘 → 可换 OSS） | [lms-media/README.md](lms-media/README.md) |
+| lms-course | 8087 | lms_course | 课程卡片 / 章节目录正文、教师建课与管理（分类标签、抢课发布窗口、排课时段、准入规则、知识库联动）、学生选课 / 退课 / 抢课 | [lms-course/README.md](lms-course/README.md) |
+| lms-media | 8088 | lms_media | 文件 / 视频上传与媒资管理，统一存储抽象（本地磁盘 → 可换 OSS）；作为“给课程/试卷/知识库加文件”的工具能力内嵌各业务 | [lms-media/README.md](lms-media/README.md) |
 | lms-remark | 8090 | lms_remark | 跨业务对象（课程 / 笔记 / 问答）的通用点赞互动 | [lms-remark/README.md](lms-remark/README.md) |
 | lms-search | 8091 | ES 索引 course + lms_search | ES 课程搜索 / 按兴趣标签推荐 / 标签上报 | [lms-search/README.md](lms-search/README.md) |
-| lms-exam | 8092 | lms_exam | 题目管理（单选 / 多选 / 判断）、题库业务绑定 | [lms-exam/README.md](lms-exam/README.md) |
-| lms-learning | 8093 | lms_learning | 课次 / 学习记录 / 笔记 / 互动问答 / 签到 / 积分与积分榜 | [lms-learning/README.md](lms-learning/README.md) |
+| lms-exam | 8092 | lms_exam | 题目管理（单选 / 多选 / 判断）与课程题库、组卷 → 发布卷面 → 发布作业 / 考试排期、同步 / Kafka 异步交卷判分、做题记录回流 | [lms-exam/README.md](lms-exam/README.md) |
+| lms-learning | 8093 | lms_learning | 课次 / 学习记录 / 笔记 / 互动问答 / 签到 / 积分与积分榜、学习数据中心（做题记录聚合） | [lms-learning/README.md](lms-learning/README.md) |
 | lms-statistics | 8094 | lms_statistics | 数据看板：总览 / 今日数据 / Top10，跨服务 Feign 聚合 | [lms-statistics/README.md](lms-statistics/README.md) |
-| lms-ai | 8095 | lms_ai（L1 会话/L2 画像/任务）+ Redis | AgentScope Java + DashScope：单轮对话 + **个人 Agent 体系**（个人/子 Agent、三层记忆、邀请制编排、IM 管道、定时任务）+ 学习评测管道（0.2 工具面扩展） | [lms-ai/README.md](lms-ai/README.md) |
-| lms-kb | 8096 | lms_kb + ES lms_kb_chunk | 知识库（课程/个人）+ RAG 五步流水线 + RAGAS 评测；0.2 课程正文同步入知识库 | [lms-kb/README.md](lms-kb/README.md) |
+| lms-ai | 8095 | lms_ai（L1 会话/L2 画像/任务）+ Redis | AgentScope Java + DashScope：单轮对话 + **个人 Agent 体系**（个人/子 Agent、三层记忆、邀请制编排、IM 管道、定时任务）+ Harness 工具面（意图识别 / 工具控制 / HITL）与学习评测管道 | [lms-ai/README.md](lms-ai/README.md) |
+| lms-kb | 8096 | lms_kb + ES lms_kb_chunk | 知识库（课程/个人）+ RAG 五步流水线 + RAGAS 评测；课程知识文档文件管理、正文自动入库 | [lms-kb/README.md](lms-kb/README.md) |
 | lms-grab | 8097 | lms_grab + Redis | **抢课（0.2 新增）**：Redis Lua 预检库存 + Kafka 异步落库 + 对账回补 | — |
+| lms-calendar | 8098 | Redis（只读聚合，无独立库） | **统一日历（0.2 新增）**：跨域拉取排课 / 考试 / 作业事件聚合为统一接口，Redis 缓存，供首页日历与课表 | — |
 
 ### 公共层
 
@@ -71,14 +72,14 @@
 
 | 模块 | 端口 | 说明 | 文档 |
 |---|---|---|---|
-| lms-web | 5173 | Vue3 + Vite 单页应用：登录注册 / 课程 / 媒资 / 搜索 / 看板 / 学习中心 / 题库管理 | [lms-web/README.md](lms-web/README.md) |
+| lms-web | 5173 | Vue3 + Vite 单页应用：首页（个人画像 + 日历）/ 课程广场（浏览 · 搜索 · 推荐）/ 我的课程 / 学习中心 / 考试作业（学生待办 · 教师发布台）/ 数据看板；课程管理内提供题库 · 出卷 · 知识库（按课程组织） | [lms-web/README.md](lms-web/README.md) |
 
 ### 基础设施与编排（详见「快速开始」）
 
 - `docker-compose.yml`：nacos / mysql / redis / kafka / es（可选 kafka-ui / kibana）
-- `docker/mysql/init/`：MySQL 首次启动自动执行的建库脚本（每服务独立库 `lms_<domain>`）
-- `nacos-config/`：配置中心内容源（13 份 yaml），`scripts/push-nacos-config.ps1` 一键导入
-- `scripts/`：`start-all.ps1` / `stop-all.ps1`（一键启停全部服务）、`cleanup-demo-data.sql`
+- `docker/mysql/init/`：MySQL 首次启动自动执行的建库脚本（每服务独立库 `lms_<domain>`，含各版本增量 DDL）
+- `nacos-config/`：配置中心内容源（15 份 yaml，覆盖全部 14 个服务），`scripts/push-nacos-config.ps1` 一键导入
+- `scripts/`：`start-all.ps1` / `stop-all.ps1`（一键启停全部服务）、`push-nacos-config.ps1`、`setup-demo-accounts.sql`（演示账号）
 
 ## 快速开始
 
@@ -103,7 +104,7 @@ mvn -s mvn-settings.xml clean install    # 构建全部模块（common → gatew
 ```
 
 - IDEA：直接运行各服务 `*Application`，profile 选 `dev`（先保证 Nacos 已 up）
-- 一键启动：`powershell -ExecutionPolicy Bypass -File scripts/start-all.ps1`（启动 10 个后端 jar + Vite）
+- 一键启动：`powershell -ExecutionPolicy Bypass -File scripts/start-all.ps1`（启动 14 个后端 jar + Vite）
 - 前端：`cd lms-web && npm install && npm run dev`
 
 > 启动顺序：先 `docker compose up -d`（等 healthy）→ 再启网关与业务服务。前端直连网关 8080，跨域已由网关 CORS 放行。
@@ -132,22 +133,25 @@ LMS/
 ├── pom.xml                  # 父工程：聚合模块 + 统一版本管理（唯一版本源）
 ├── mvn-settings.xml         # 项目专用 Maven settings（localRepository 指向 .m2-repo）
 ├── docker-compose.yml       # 基础设施编排：nacos/mysql/redis/kafka/es（+ kafka-ui/kibana）
-├── docker/mysql/init/       # MySQL 首次启动自动建库脚本（每服务独立库 lms_<domain>）
-├── nacos-config/            # 配置中心内容源（lms-common/gateway/auth/... 共 13 份 yaml）
-├── scripts/                 # 运维脚本：push-nacos-config / start-all / stop-all
+├── docker/mysql/init/       # MySQL 首次启动自动建库脚本（每服务独立库 lms_<domain> + 增量 DDL）
+├── nacos-config/            # 配置中心内容源（15 份 yaml，覆盖全部 14 个服务）
+├── scripts/                 # 运维脚本：push-nacos-config / start-all / stop-all / setup-demo-accounts
 ├── lms-common/              # 公共库：统一响应/异常/分页/工具/JWT/自动配置 → README
 ├── lms-gateway/             # 网关：路由 + JWT 鉴权 + 白名单 + user-info 透传 → README
 ├── lms-auth/                # 认证：注册/登录/登出/JWT（库 lms_auth）→ README
 ├── lms-user/                # 用户档案：学生/教师扩展（库 lms_user）→ README
-├── lms-course/              # 课程：卡片展示/建课/选课（库 lms_course）→ README
-├── lms-media/               # 媒资：上传/管理/存储抽象（库 lms_media）→ README
+├── lms-course/              # 课程：卡片/目录正文/建课发布/排课/分类/抢课窗口（库 lms_course）→ README
+├── lms-media/               # 媒资：上传/管理/存储抽象（库 lms_media，工具能力内嵌业务）→ README
 ├── lms-remark/              # 评价互动：通用点赞（库 lms_remark）→ README
 ├── lms-search/              # 搜索：ES 搜索/推荐/兴趣标签（ES + lms_search）→ README
-├── lms-exam/                # 题库：题目管理/业务归类（库 lms_exam）→ README
-├── lms-learning/            # 学习过程：课次/记录/笔记/问答/积分/签到（库 lms_learning）→ README
+├── lms-exam/                # 题库/组卷/考试作业排期/交卷判分（库 lms_exam）→ README
+├── lms-learning/            # 学习过程：课次/记录/笔记/问答/积分/签到/数据中心（库 lms_learning）→ README
 ├── lms-statistics/          # 数据中心：看板/今日数据/Top10（库 lms_statistics）→ README
-├── lms-ai/                  # AI 能力：AgentScope + DashScope 对话 → README
-├── lms-web/                 # 前端：Vue3 + Vite（登录/课程/媒资/搜索/看板/学习/题库）→ README
+├── lms-ai/                  # AI：AgentScope + DashScope、个人 Agent/Harness 工具面 → README
+├── lms-kb/                  # 知识库：课程/个人 RAG 五步流水线（库 lms_kb + ES）→ README
+├── lms-grab/                # 抢课：Redis 预检 + Kafka 异步落库（库 lms_grab）
+├── lms-calendar/            # 日历：排课/考试/作业统一事件聚合（Redis 缓存）
+├── lms-web/                 # 前端：Vue3 + Vite（首页/课程广场/学习中心/考试作业/课程管理内题库出卷知识库）→ README
 └── docs/                    # 设计文档（业务模块蓝图 / 代码注释规范）
 ```
 
