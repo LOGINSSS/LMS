@@ -1,5 +1,5 @@
 # ============================================================
-# 一键启动全部服务（9 个后端 + 网关 + Vite 前端）
+# 一键启动全部服务（14 个后端 jar + Vite 前端）
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/start-all.ps1
 # 说明：用 Start-Process 以独立进程启动（不依赖本会话后台任务），
 #       关闭终端不会终止这些进程；停止用 scripts/stop-all.ps1
@@ -19,6 +19,10 @@ $services = @(
     "lms-exam",
     "lms-learning",
     "lms-statistics",
+    "lms-ai",
+    "lms-kb",
+    "lms-grab",
+    "lms-calendar",
     "lms-gateway"
 )
 

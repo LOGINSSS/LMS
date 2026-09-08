@@ -26,6 +26,7 @@ $files = @(
     "lms-kb.yaml",
     "lms-ai.yaml",
     "lms-grab.yaml",
+    "lms-calendar.yaml",
     "lms-gateway.yaml"
 )
 

@@ -52,11 +52,11 @@ spring:
           uri: lb://lms-search
           predicates:
             - Path=/search/**,/interests/**
-        # 考试题库服务：题目管理（教师）/按业务取题（需登录）
+        # 考试题库服务：题目管理（教师）/按业务取题（需登录）；考试排期（v1 P2b-④）；试卷快照（出卷流程骨干：组卷/发布/答题判分）
         - id: lms-exam
           uri: lb://lms-exam
           predicates:
-            - Path=/admin/questions/**,/questions/**
+            - Path=/admin/questions/**,/questions/**,/admin/exam-schedules/**,/exam-schedules/**,/admin/exam-papers/**,/exam-papers/**
         # 学习过程服务：课次/学习记录/笔记/问答/签到/积分（需登录；
         # 问答用 /qa/** 前缀规避 exam 的 /questions/**）
         - id: lms-learning
@@ -73,16 +73,21 @@ spring:
           uri: lb://lms-ai
           predicates:
             - Path=/ai/**,/agent/**
-        # 知识库服务：知识库管理/文档入库/RAG 问答/评估
-        - id: lms-kb
-          uri: lb://lms-kb
+        # Python RAG 服务（替代 lms-kb）：课程知识库建库/正文同步/问答（/rag/**，R 信封契约直连 python）
+        - id: rag-python
+          uri: http://127.0.0.1:13080
           predicates:
-            - Path=/kb/**,/rag/**,/eval/**
+            - Path=/rag/**
         # 抢课服务（0.2）：Redis 预检库存 + Kafka 异步落库（需登录）
         - id: lms-grab
           uri: lb://lms-grab
           predicates:
             - Path=/grab/**
+        # 统一日历：主页大日历/课表周视图的事件聚合（排课/考试/作业，多色渲染）
+        - id: lms-calendar
+          uri: lb://lms-calendar
+          predicates:
+            - Path=/calendar/**
 
 lms:
   gateway:
