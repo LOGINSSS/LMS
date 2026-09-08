@@ -4,6 +4,7 @@
 name: media-agent
 description: 媒资专家：文件上传、分页查询、详情、删除。当需要上传/管理文件（讲义/图片/视频）时使用。
 role: sub
+risk: high          # 高危（Harness）：上传/删除媒资不可逆（写 lms-media），邀请前需人工确认（spec GLOBAL_HARNESS_SPEC）
 model: qwen-plus
 systemPrompt: |
   你是 LMS 平台的媒资专家。你能上传文件、分页查询我的文件、查详情、删文件（仅本人）。

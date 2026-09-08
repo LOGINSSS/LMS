@@ -32,6 +32,24 @@ public class AgentTask extends BaseEntity {
     /** 发起 agent 名 */
     private String agentName;
 
+    /** 归属会话 id（P5 会话级任务板：turn/子任务关联；null=非会话（如 eval- 管道按 owner 隔离）） */
+    private Long sessionId;
+
+    /** 父任务 id（任务树） */
+    private Long parentTaskId;
+
+    /** 触发意图（L0 输出，可选） */
+    private String intent;
+
+    /** 动作类型：turn/invite/tool/pipeline/timer */
+    private String actionType;
+
+    /** 动作引用：invite:exam-agent / tool:exam.saveQuestion / pipeline:assess */
+    private String actionRef;
+
+    /** 任务树深度 */
+    private Integer depth;
+
     /** 任务类型：qa_remind / outline_generate / report_xxx ... */
     private String taskType;
 
@@ -73,4 +91,11 @@ public class AgentTask extends BaseEntity {
     public static final int TRIGGER_DELAY = 1;
     public static final int TRIGGER_CRON = 2;
     public static final int TRIGGER_ONCE = 3;
+
+    /** 动作类型常量（P5 会话级任务板） */
+    public static final String ACTION_TURN = "turn";
+    public static final String ACTION_INVITE = "invite";
+    public static final String ACTION_TOOL = "tool";
+    public static final String ACTION_PIPELINE = "pipeline";
+    public static final String ACTION_TIMER = "timer";
 }

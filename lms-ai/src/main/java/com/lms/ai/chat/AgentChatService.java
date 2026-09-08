@@ -1,9 +1,15 @@
 package com.lms.ai.chat;
 
 import com.lms.ai.factory.PersonalAgentFactory;
+import com.lms.ai.harness.HarnessKeys;
+import com.lms.ai.harness.HarnessSessionGuard;
+import com.lms.ai.harness.HarnessTraceService;
+import com.lms.ai.intent.IntentDecision;
+import com.lms.ai.intent.IntentRouterService;
 import com.lms.ai.memory.ProfileService;
 import com.lms.ai.session.AgentSession;
 import com.lms.ai.session.AgentSessionService;
+import com.lms.ai.task.TaskService;
 import com.lms.ai.tools.ToolSupport;
 import com.lms.common.exceptions.CommonException;
 import io.agentscope.core.ReActAgent;
@@ -25,6 +31,9 @@ import java.util.Map;
  *
  * L1 会话记忆：消息存 Redis（AgentSessionService），每次调用重建 agent 并传入完整历史
  * （系统 + 画像 + 最近 N 轮，spec §4.2 上下文裁剪由 AgentSessionService 控制）。
+ *
+ * Harness（GLOBAL_HARNESS_SPEC）：每轮对话前做会话生命周期检查（turn/token 预算），
+ * 超限自动结束会话；对话后记录用量与 Trace。
  */
 @Slf4j
 @Service
@@ -34,6 +43,11 @@ public class AgentChatService {
     private final PersonalAgentFactory personalAgentFactory;
     private final AgentSessionService sessionService;
     private final ProfileService profileService;
+    private final HarnessSessionGuard sessionGuard;
+    private final IntentRouterService intentRouter;
+    private final HarnessTraceService traceService;
+    private final TaskService taskService;
+    private final ContextCompressor contextCompressor;
 
     /**
      * 多轮对话
@@ -53,10 +67,24 @@ public class AgentChatService {
             throw new CommonException("会话已结束，请新建会话");
         }
 
+        // Harness：会话生命周期检查（超限抛异常并提示新建）
+        sessionGuard.checkBeforeTurn(session.getId());
+        // Harness：记录本轮用户用量（超限返回原因 → 结束会话）
+        String limitReason = sessionGuard.recordUserTurn(session.getId(), text);
+        if (limitReason != null) {
+            sessionService.closeSession(userId, session.getId());
+            throw new CommonException(limitReason);
+        }
+
         // 记录行为事件（L2 原料，spec §4.3：对话/提问）
         profileService.recordBehavior(userId, ProfileService.EVENT_CHAT, Map.of("question", text, "agentType", agentType));
 
-        // L1：组装历史 + 新消息
+        // L1：组装历史 + 新消息（先做上下文压缩判定：长会话 → LLM 摘要，best-effort）
+        try {
+            contextCompressor.compressIfNeeded(session.getId());
+        } catch (Exception e) {
+            log.warn("上下文压缩执行失败（忽略）sessionId={}: {}", session.getId(), e.getMessage());
+        }
         List<Msg> messages = new ArrayList<>();
         for (Map<String, String> m : sessionService.loadMessages(session.getId())) {
             if ("user".equals(m.get("role"))) {
@@ -68,14 +96,30 @@ public class AgentChatService {
         messages.add(new UserMessage(text));
         sessionService.appendMessage(session.getId(), "user", text);
 
-        // 构建 agent + 运行上下文（用户身份经 RuntimeContext 注入工具，spec §5.3）
-        ReActAgent agent = personalAgentFactory.build(userId, userType, agentType);
+        // L0 意图路由（确定性规则层，spec HEAVY_HARNESS_SPEC §4）：写 ctx 供策略/flow 判定 + Trace 度量；
+        // UNKNOWN = 自由 ReAct 兜底（不阻断对话，只记录）
+        IntentDecision intentDecision = intentRouter.route(userId, userType, session.getId(), text, agentType);
+
+        // 运行上下文（用户身份经 RuntimeContext 注入工具，spec §5.3）
         RuntimeContext ctx = RuntimeContext.builder()
                 .sessionId(String.valueOf(session.getId()))
                 .userId(String.valueOf(userId))
                 .put(ToolSupport.CTX_USER_ID, userId)
                 .put(ToolSupport.CTX_USER_TYPE, userType)
                 .build();
+        if (intentDecision.isKnown()) {
+            ctx.put(HarnessKeys.CTX_INTENT, intentDecision.intent().name());
+        }
+        traceService.record(String.valueOf(session.getId()), HarnessTraceService.EVENT_INTENT, Map.of(
+                "agent", agentType,
+                "intent", intentDecision.intent().name(),
+                "confidence", String.valueOf(intentDecision.confidence()),
+                "source", intentDecision.source(),
+                "textLen", String.valueOf(text == null ? 0 : text.length())));
+
+        // 构建 agent（意图命中时注入提示降误路由，非安全屏障）
+        ReActAgent agent = personalAgentFactory.build(userId, userType, agentType,
+                intentDecision.isKnown() ? intentDecision.hint() : null);
 
         String reply;
         try {
@@ -88,6 +132,14 @@ public class AgentChatService {
             agent.close();
         }
         sessionService.appendMessage(session.getId(), "assistant", reply);
+        sessionGuard.recordAssistant(session.getId(), reply);
+        // P5 会话任务板：本轮 turn 落板（best-effort，失败不影响对话）
+        try {
+            taskService.recordTurn(session.getId(), userId, agentType,
+                    intentDecision.isKnown() ? intentDecision.intent().name() : null, text);
+        } catch (Exception e) {
+            log.debug("turn 落板失败（忽略）sessionId={}: {}", session.getId(), e.getMessage());
+        }
         return new ChatResult(session.getId(), reply, null);
     }
 
@@ -110,6 +162,7 @@ public class AgentChatService {
             String answer = result == null ? replyText : result.getTextContent();
             sessionService.appendMessage(session.getId(), "user", prompt);
             sessionService.appendMessage(session.getId(), "assistant", answer);
+            sessionGuard.recordAssistant(session.getId(), answer);
             return answer;
         } catch (Exception e) {
             log.error("IM 回流处理失败 sessionId={}", sessionId, e);

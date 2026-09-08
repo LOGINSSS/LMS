@@ -44,6 +44,18 @@ public class PersonalAgentFactory {
      * @param agentType student-agent / teacher-agent
      */
     public ReActAgent build(Long userId, Integer userType, String agentType) {
+        return build(userId, userType, agentType, null);
+    }
+
+    /**
+     * 构建个人 agent（每次对话新建实例，L1 消息由 AgentChatService 管理，无跨会话状态污染）
+     *
+     * @param userId      用户 id
+     * @param userType    1 学生 / 2 老师
+     * @param agentType   student-agent / teacher-agent
+     * @param intentHint  L0 意图提示（可选，非安全屏障；命中意图时注入提示降低误路由，未识别传 null）
+     */
+    public ReActAgent build(Long userId, Integer userType, String agentType, String intentHint) {
         AgentDeclaration decl = registry.get(agentType);
         AgentUserProfile profile = profileService.getOrCreate(userId, userType, null);
         String roleName = userType != null && userType == 2 ? "老师" : "学生";
@@ -58,7 +70,12 @@ public class PersonalAgentFactory {
         sysPrompt.append("\n\n【会话规则】\n")
                 .append("- 当前用户是").append(roleName).append("（userId=").append(userId).append("）\n")
                 .append("- 涉及他人数据/越权操作直接拒绝；落库类操作必须调用工具\n")
-                .append("- 需要人工/长任务时使用 im.pushMessage 与 task.schedule 工具\n");
+                .append("- 需要人工/长任务时使用 im.pushMessage 与 task.schedule 工具\n")
+                .append("- 邀请专家前先确认必要性；若系统返回【Harness 拦截】结果，说明该邀请被管控层拒绝/需人工确认，")
+                .append("立即停止尝试，按结果文本要求结束本轮并向用户说明，不要重复或换名重试被拦截的邀请\n");
+        if (intentHint != null && !intentHint.isBlank()) {
+            sysPrompt.append("\n【本轮意图提示】").append(intentHint).append("\n");
+        }
 
         // 2. Toolkit：声明工具 + 邀请子 agent（SubAgentTool）
         var toolkit = toolFactory.build(decl);

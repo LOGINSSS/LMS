@@ -87,11 +87,94 @@ public class TaskService {
                 .set(AgentTask::getFinishTime, LocalDateTime.now()));
     }
 
+    // ==================== P5 会话级任务板（agent_task 扩展列，spec HEAVY_HARNESS_SPEC §5.3） ====================
+
+    /**
+     * 会话 turn 落板（每轮用户消息一条，action_type=turn，status=DONE 即时完成）
+     *
+     * @param sessionId   会话 id（Long）
+     * @param ownerId     归属用户
+     * @param agentName   个人 agent（student-agent/teacher-agent）
+     * @param intent      L0 意图（可空）
+     * @param textSnippet 用户消息摘要（存 payload，截断）
+     */
+    @Transactional
+    public void recordTurn(Long sessionId, Long ownerId, String agentName, String intent, String textSnippet) {
+        if (sessionId == null || ownerId == null) {
+            return;
+        }
+        AgentTask task = actionRow(sessionId, null, ownerId, agentName, intent,
+                AgentTask.ACTION_TURN, null, 0, null);
+        task.setPayload(JSONUtil.toJsonStr(Map.of("text", StrUtil.sub(textSnippet, 0, 200))));
+        taskMapper.insert(task);
+    }
+
+    /**
+     * 会话动作落板（tool 级只落写工具 + 邀请 + 管道节点，读工具走 Trace，spec §5.3）
+     *
+     * @param actionType AgentTask.ACTION_INVITE / ACTION_TOOL / ACTION_PIPELINE
+     * @param actionRef  动作引用（invite:exam-agent / tool:exam.saveQuestion）
+     * @param result     执行结果/说明（截断）
+     */
+    @Transactional
+    public void recordAction(Long sessionId, Long parentTaskId, Long ownerId, String agentName,
+                             String actionType, String actionRef, String result) {
+        if (sessionId == null || StrUtil.isBlank(actionType)) {
+            return;
+        }
+        AgentTask task = actionRow(sessionId, parentTaskId, ownerId, agentName, null,
+                actionType, actionRef, 0, StrUtil.sub(result, 0, 1000));
+        taskMapper.insert(task);
+    }
+
+    /** 会话任务树：该会话下全部任务板行（id 升序，父在前子在后，前端按 parentTaskId 组树） */
+    public List<AgentTask> tree(Long sessionId) {
+        if (sessionId == null) {
+            return List.of();
+        }
+        return taskMapper.selectList(new LambdaQueryWrapper<AgentTask>()
+                .eq(AgentTask::getSessionId, sessionId)
+                .orderByAsc(AgentTask::getId));
+    }
+
+    /** 动作板通用行组装（即时完成态：status=DONE，trigger=ONCE） */
+    private AgentTask actionRow(Long sessionId, Long parentTaskId, Long ownerId, String agentName,
+                                String intent, String actionType, String actionRef, int depth, String result) {
+        AgentTask task = new AgentTask();
+        task.setTaskId(IdUtil.fastSimpleUUID());
+        task.setOwnerId(ownerId == null ? 0L : ownerId);
+        task.setAgentName(agentName);
+        task.setSessionId(sessionId);
+        task.setParentTaskId(parentTaskId);
+        task.setIntent(intent);
+        task.setActionType(actionType);
+        task.setActionRef(actionRef);
+        task.setDepth(depth);
+        task.setTaskType(actionType == null ? "board" : actionType);
+        task.setTriggerType(AgentTask.TRIGGER_ONCE);
+        task.setStatus(AgentTask.STATUS_DONE);
+        task.setResult(result);
+        task.setExecuteTime(LocalDateTime.now());
+        task.setFinishTime(LocalDateTime.now());
+        return task;
+    }
+
+    /** 字符串会话 id → Long（非数字（如 eval-1）返回 null，任务板仅数字会话落板） */
+    public static Long numericSession(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(sessionId.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /**
      * 到点执行：status=0 且 execute_time<=now（TaskSchedulerRunner 调用）
      */
-    public int executeDueTasks() {
-        List<AgentTask> due = taskMapper.selectList(new LambdaQueryWrapper<AgentTask>()
+    public int executeDueTasks() {        List<AgentTask> due = taskMapper.selectList(new LambdaQueryWrapper<AgentTask>()
                 .eq(AgentTask::getStatus, AgentTask.STATUS_PENDING)
                 .le(AgentTask::getExecuteTime, LocalDateTime.now()));
         int executed = 0;

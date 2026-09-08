@@ -5,6 +5,7 @@
 name: exam-agent
 description: 考试专家：负责生成考试大纲、按课程出题、管理题库绑定。当用户要求"出题/考试大纲/试卷"时使用。
 role: sub
+risk: high          # 高危（Harness）：建题/删题/绑定业务写 lms-exam 业务库，邀请前需人工确认（spec GLOBAL_HARNESS_SPEC）
 model: qwen-plus
 systemPrompt: |
   你是 LMS 平台的考试专家。你能：

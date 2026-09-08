@@ -59,7 +59,55 @@ public class AgentRegistry {
             throw new IllegalStateException("加载 Agent 声明失败", e);
         }
         declarations = Map.copyOf(map);
+        validate(map);
         log.info("Agent 注册表加载完成，共 {} 个声明: {}", declarations.size(), declarations.keySet());
+    }
+
+    /**
+     * 注册图静态校验（Harness 依赖的结构性安全底线，spec GLOBAL_HARNESS_SPEC §4.1.3）：
+     * 1. role=sub 的专家不得声明 subAgents —— 专家是纯被动 Worker，不会主动邀请其他 Agent；
+     * 2. 声明的 subAgents 必须存在 —— 防 typo 导致运行期静默丢失邀请能力；
+     * 3. 邀请图无环 —— 环会让主 Agent 死循环互邀（运行时深度拦截是第二道防线，这里提前暴露）。
+     */
+    private void validate(Map<String, AgentDeclaration> map) {
+        for (AgentDeclaration d : map.values()) {
+            if (AgentDeclaration.ROLE_SUB.equals(d.getRole()) && !d.getSubAgents().isEmpty()) {
+                throw new IllegalStateException("Agent 声明校验失败：" + d.getName()
+                        + " 是 sub 专家，不得声明 subAgents（专家不再主动邀请其他 Agent，spec §1.3）");
+            }
+            for (String sub : d.getSubAgents()) {
+                if (!map.containsKey(sub)) {
+                    throw new IllegalStateException("Agent 声明校验失败：" + d.getName()
+                            + " 声明的子 agent 不存在: " + sub);
+                }
+            }
+        }
+        // 邀请环检测（DFS 三色标记）
+        Map<String, Integer> color = new java.util.HashMap<>();
+        for (String name : map.keySet()) {
+            if (color.getOrDefault(name, 0) == 0) {
+                detectCycle(name, map, color, new java.util.ArrayDeque<>());
+            }
+        }
+    }
+
+    /** 0=白 1=灰(在栈) 2=黑(已完成) */
+    private void detectCycle(String name, Map<String, AgentDeclaration> map,
+                             Map<String, Integer> color, java.util.ArrayDeque<String> stack) {
+        color.put(name, 1);
+        stack.push(name);
+        for (String sub : map.get(name).getSubAgents()) {
+            int c = color.getOrDefault(sub, 0);
+            if (c == 1) {
+                throw new IllegalStateException("Agent 声明校验失败：邀请图存在环 -> "
+                        + stack + " -> " + sub + "（将导致死循环互邀）");
+            }
+            if (c == 0) {
+                detectCycle(sub, map, color, stack);
+            }
+        }
+        stack.pop();
+        color.put(name, 2);
     }
 
     public AgentDeclaration get(String name) {

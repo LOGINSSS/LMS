@@ -4,6 +4,7 @@
 name: im-agent
 description: 消息专家：把消息推送到老师小助手（微信/QQ/企微），解析平台回调消息。
 role: sub
+risk: high          # 高危（Harness）：对外 IM 触达（企微/微信 webhook），邀请前需人工确认（spec GLOBAL_HARNESS_SPEC）
 model: qwen-plus
 systemPrompt: |
   你是 LMS 平台的消息专家。你能把文本消息推送到老师小助手（IM 渠道），

@@ -3,6 +3,7 @@ package com.lms.ai.session;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lms.ai.config.AiAgentProperties;
+import com.lms.ai.harness.HarnessSessionGuard;
 import com.lms.common.exceptions.CommonException;
 import com.lms.common.utils.JsonUtils;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.Objects;
  * - 元数据：MySQL agent_session（我的会话列表 / 结束会话）
  * - 消息：Redis `agent:session:{sessionId}:messages`（TTL 1~7 天），多轮消息按 (userId, sessionId) 隔离
  * - 上下文裁剪：超长时保留「系统 + 画像摘要 + 最近 N 轮」（阶段 5 完整实现，当前按条数裁剪）
+ * - Harness（GLOBAL_HARNESS_SPEC §4.5）：结束会话时清理会话用量计数
  */
 @Slf4j
 @Service
@@ -36,6 +38,7 @@ public class AgentSessionService {
     private final AgentSessionMapper sessionMapper;
     private final StringRedisTemplate redisTemplate;
     private final AiAgentProperties properties;
+    private final HarnessSessionGuard sessionGuard;
 
     /** 建会话 */
     public AgentSession createSession(Long userId, String agentType, String title) {
@@ -66,7 +69,7 @@ public class AgentSessionService {
         return s;
     }
 
-    /** 结束会话：L1 摘要压缩 → 追加进 L2 行为流水（spec §4.5 第 5 步） */
+    /** 结束会话：L1 摘要压缩 → 追加进 L2 行为流水（spec §4.5 第 5 步）+ 清理 Harness 用量 */
     public void closeSession(Long userId, Long sessionId) {
         AgentSession s = getOwned(userId, sessionId);
         if (s.getStatus() == AgentSession.STATUS_CLOSED) {
@@ -76,6 +79,8 @@ public class AgentSessionService {
         s.setStatus(AgentSession.STATUS_CLOSED);
         sessionMapper.updateById(s);
         redisTemplate.delete(msgKey(sessionId));
+        clearSummary(sessionId);
+        sessionGuard.clear(sessionId);
     }
 
     /** 追加一条消息（user/assistant）并更新计数 */
@@ -94,13 +99,27 @@ public class AgentSessionService {
                 .set(AgentSession::getMessageCount, (size == null ? 0 : size) + 1));
     }
 
-    /** 加载会话消息列表（[{role,text}]） */
+    /** 加载会话消息列表（[{role,text}]）；若有历史摘要则置顶一条 assistant 摘要 */
     public List<Map<String, String>> loadMessages(Long sessionId) {
+        List<Map<String, String>> out = new ArrayList<>();
+        String summary = getSummary(sessionId);
+        if (summary != null && !summary.isBlank()) {
+            out.add(Map.of("role", "assistant", "text", "【会话历史摘要】" + summary));
+        }
+        out.addAll(loadMessagesRaw(sessionId));
+        return out;
+    }
+
+    /** 原始消息列表（不含摘要行；ContextCompressor 压缩判定用） */
+    public List<Map<String, String>> loadMessagesRaw(Long sessionId) {
+        List<Map<String, String>> out = new ArrayList<>();
+        if (sessionId == null) {
+            return out;
+        }
         List<String> jsons = redisTemplate.opsForList().range(msgKey(sessionId), 0, -1);
         if (jsons == null) {
-            return new ArrayList<>();
+            return out;
         }
-        List<Map<String, String>> out = new ArrayList<>();
         for (String j : jsons) {
             try {
                 cn.hutool.json.JSONObject obj = JsonUtils.parseObj(j);
@@ -112,6 +131,40 @@ public class AgentSessionService {
         return out;
     }
 
+    // ---------- P4 LLM 摘要压缩（HEAVY_HARNESS_SPEC §5.5：摘要入 Redis key，超长裁剪由 ContextCompressor 驱动） ----------
+
+    /** 读会话历史摘要（无则 null） */
+    public String getSummary(Long sessionId) {
+        if (sessionId == null) {
+            return null;
+        }
+        return redisTemplate.opsForValue().get(summaryKey(sessionId));
+    }
+
+    /** 写会话历史摘要（TTL 同消息） */
+    public void putSummary(Long sessionId, String summary) {
+        if (sessionId == null || summary == null || summary.isBlank()) {
+            return;
+        }
+        redisTemplate.opsForValue().set(summaryKey(sessionId), summary,
+                Duration.ofDays(properties.getSessionTtlDays()));
+    }
+
+    /** 清摘要（结束会话时一并） */
+    public void clearSummary(Long sessionId) {
+        if (sessionId != null) {
+            redisTemplate.delete(summaryKey(sessionId));
+        }
+    }
+
+    /** 只保留最近 keep 条消息（ContextCompressor 压缩后调用；keep<=0 不操作） */
+    public void trimToKeep(Long sessionId, int keep) {
+        if (sessionId == null || keep <= 0) {
+            return;
+        }
+        redisTemplate.opsForList().trim(msgKey(sessionId), -keep, -1);
+    }
+
     private void trimHalf(String key) {
         Long size = redisTemplate.opsForList().size(key);
         if (size != null && size > 0) {
@@ -121,5 +174,9 @@ public class AgentSessionService {
 
     private String msgKey(Long sessionId) {
         return MSG_KEY_PREFIX + sessionId + MSG_KEY_SUFFIX;
+    }
+
+    private String summaryKey(Long sessionId) {
+        return MSG_KEY_PREFIX + sessionId + ":summary";
     }
 }

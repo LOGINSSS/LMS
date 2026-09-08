@@ -23,6 +23,13 @@ public class AgentDeclaration {
     /** 角色：personal（个人 agent，常驻编排者）/ sub（子 agent，被邀请者）/ tool（纯工具集合） */
     private String role = "sub";
 
+    /**
+     * 风险等级（Harness 会话级高危 HITL 依据，spec GLOBAL_HARNESS_SPEC §3）：
+     * high = 会写库/修改业务数据/对外触达，邀请前需人工确认；normal = 默认（多为只读/本人数据操作）。
+     * 纯声明兜底，实际是否拦截由 lms.ai.harness.invite.high-risk-policy 决定（log/ask/deny）。
+     */
+    private String risk = RISK_NORMAL;
+
     /** 模型（可选，缺省走配置 lms.ai.agent.subagent-model） */
     private String model;
 
@@ -46,7 +53,16 @@ public class AgentDeclaration {
     public static final String ROLE_SUB = "sub";
     public static final String ROLE_TOOL = "tool";
 
+    /** 风险等级常量 */
+    public static final String RISK_HIGH = "high";
+    public static final String RISK_NORMAL = "normal";
+
     public boolean isPersonal() {
         return ROLE_PERSONAL.equals(role);
+    }
+
+    /** 是否高危专家（写库/修改业务数据/对外触达，Harness 邀请前置 HITL 依据） */
+    public boolean isHighRisk() {
+        return RISK_HIGH.equalsIgnoreCase(risk);
     }
 }

@@ -1,8 +1,10 @@
 package com.lms.ai.controller;
 
+import com.lms.ai.session.AgentSessionService;
 import com.lms.ai.task.AgentTask;
 import com.lms.ai.task.TaskService;
 import com.lms.common.domain.R;
+import com.lms.common.exceptions.CommonException;
 import com.lms.common.utils.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskController {
 
     private final TaskService taskService;
+    private final AgentSessionService sessionService;
 
     @PostMapping
     @Operation(summary = "发布任务（agent 内部工具/管理端）")
@@ -46,6 +50,13 @@ public class TaskController {
     public R<Void> cancel(@PathVariable("taskId") String taskId) {
         taskService.cancel(taskId);
         return R.ok();
+    }
+
+    @GetMapping("/tree")
+    @Operation(summary = "会话任务树（turn/邀请/写工具/管道节点，仅会话归属人）")
+    public R<java.util.List<AgentTask>> tree(@RequestParam("sessionId") Long sessionId) {
+        sessionService.getOwned(UserContext.getUser(), sessionId);
+        return R.ok(taskService.tree(sessionId));
     }
 
     public record TaskScheduleRequest(@NotBlank(message = "任务类型不能为空") String taskType,

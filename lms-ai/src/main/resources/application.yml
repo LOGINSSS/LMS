@@ -76,6 +76,55 @@ lms:
       max-invoke-depth: 3
       # 高副作用工具（建题/上架/推送）前置人工确认（阶段 5 加固项，当前先提示不拦截）
       require-confirm: false
+    # ============ 全局 Harness（管控护栏，spec GLOBAL_HARNESS_SPEC） ============
+    # 会话全局一份，不下沉专家 Agent：邀请前置拦截（深度/白名单/高危 HITL）
+    # + 会话生命周期兜底（turn/token）+ Trace 可观测
+    harness:
+      enabled: true                                          # 总开关（false = 全部放行只留日志，阶段回退用）
+      invite:
+        # 邀请最大嵌套深度（个人 agent → 子 agent → …；与 spec §5.3 的 max-invoke-depth 对齐）
+        max-depth: 3
+        # 高危专家（声明 risk=high）邀请策略：ask=强制人工确认（默认）/ deny=直接拒绝 / log=记录放行（联调用）
+        high-risk-policy: ask
+        # 会话级额外禁止邀请的专家名（叠加在声明 subAgents 白名单之上，越权名单）
+        deny-agents: []
+        # 会话白名单覆盖：inviter agent 名 → 允许邀请的 target（可选；不配=声明 subAgents）
+        # 例：teacher-agent: [exam-agent, course-agent]   # 收窄：不允许 teacher 邀 learning-agent
+        whitelist-override: {}
+      hitl:
+        enabled: true                                        # HITL 通道开关（false = 高危退化为直接拒绝）
+        request-ttl-seconds: 600                             # 确认请求有效期（10 分钟，超时自动失效）
+        approval-ttl-seconds: 1800                           # 批复缓存：批准后同会话同目标 30 分钟内免重复确认
+        hint: 该操作涉及业务数据写入/外部触达，需要人工确认
+      session:
+        # 会话生命周期兜底：0 = 不限（默认练手放开；生产建议如 50 轮 / 50000 token）
+        max-user-turns: 0
+        max-tokens: 0
+      trace:
+        enabled: true                                        # Trace 埋点开关
+        recent-limit: 200                                    # 每会话保留条数（环形缓冲）
+        ttl-days: 7                                          # Trace Redis TTL（天）
+    # ============ 重型 Harness v2（管控护栏升级，spec HEAVY_HARNESS_SPEC） ============
+    # 在 v1（上方 lms.ai.harness）基础上：统一 PolicyEngine 判定链 + 动作级 HITL（invite/工具/任务）
+    # enabled=false → 回退 v1 行为（阶段回退）；角色矩阵 / 高危策略覆盖见 PolicyEngine / HarnessV2Properties
+    harness-v2:
+      enabled: true                                          # v2 总开关（false = 全部回退 v1：v1 也关则只留日志）
+      high-risk-policy: ""                                   # 高危动作策略覆盖：ask/deny/log；空 = 沿用 v1 invite.high-risk-policy
+      role-rules: []                                         # 角色矩阵追加规则：ACTION:targetPattern:minUserType（如 CALL_TOOL:course.*:2）
+      tool-gateway-enabled: true                             # L3 工具执行网关：注册即包 GuardedFunctionTool 过 PolicyEngine（false = P0 直注）
+      tool-risk: {}                                          # 工具风险覆盖表：toolId(domain.method) → high（缺省 normal + @Tool readOnly 分流）
+      tool-switch-off: []                                    # 静态关停工具名单（动态关停走 Redis 键 tool:switch:{toolId}，值 off）
+      # P4 会话预算（0=不限，缺省；开启后超限由 PolicyEngine DENY 提示新建会话）
+      max-write-calls: 0                                     # 写工具调用次数上限
+      max-invites: 0                                         # 邀请次数上限
+      # P2 LLM 意图分类（规则层未命中时二级识别；默认关，避免每轮额外模型调用）
+      intent-llm-enabled: false                              # true 开启 qwen-turbo 意图分类
+      intent-min-confidence: 0.6                             # 置信阈值（低于 → UNKNOWN 兜底）
+      intent-llm-max-text-len: 200                           # 输入长度上限（控成本）
+      # P4 LLM 摘要压缩（长会话把最旧一段压成摘要注入；false = 现状 trimHalf 裁剪）
+      summary-enabled: false
+      summary-threshold: 30                                  # 消息条数阈值触发压缩
+      summary-keep: 15                                       # 压缩后保留最近条数
     im:
       enabled: true                                          # IM 管道开关（阶段 4）
       channel: console                                       # console | wecom | wechat | qq
