@@ -152,13 +152,13 @@ LMS/
 ├── lms-grab/                # 抢课：Redis 预检 + Kafka 异步落库（库 lms_grab）
 ├── lms-calendar/            # 日历：排课/考试/作业统一事件聚合（Redis 缓存）
 ├── lms-web/                 # 前端：Vue3 + Vite（首页/课程广场/学习中心/考试作业/课程管理内题库出卷知识库）→ README
-└── docs/                    # 设计文档（业务模块蓝图 / 代码注释规范）
+└── docs/                    # 历史设计文档（本地保留、不入库，见 .gitignore）
 ```
 
 ## 相关文档
 
-- [个人 Agent 体系与三层记忆编排规范](docs/PERSONAL_AGENT_SPEC.md)：每人一个 agent + 三层记忆 + 跨 agent 邀请制编排 + IM 管道/定时任务（**阶段 1~4 核心已实现**：lms-ai Agent 运行时 + lms-kb 个人知识库 owner 扩展；阶段 5 加固为后续项）
-- [六大业务模块设计蓝图](docs/BUSINESS_MODULES.md)：媒资 / 搜索 / 学习 / 考试 / 数据中心 / 评价互动的设计依据
-- [前后端接口契约（JSON Schema）](docs/api-schemas/README.md)：与 Java DTO 一一对应的接口数据结构定义
-- [代码注释规范](docs/CODE_COMMENT_STYLE.md)
+> ⚠️ 历史设计文档目录 `docs/`（个人 Agent Spec / 业务蓝图 / 接口契约 / 注释规范等）**已移出 git 跟踪**（见 [.gitignore](.gitignore)），仅保留在本机，不在仓库/GitHub 中；现状与规范请以仓库内文档为准：
+
+- [各模块 README](#业务层)（lms-ai / lms-course / lms-exam / lms-learning / lms-kb 等）：模块职责、数据模型与接口说明，随代码同步更新
+- [lms-web/README.md](lms-web/README.md)：前端页面路由与组件说明
 - [MySQL 建库脚本说明](docker/mysql/init/README.md)
