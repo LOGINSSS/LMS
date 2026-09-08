@@ -3,6 +3,7 @@ package com.lms.course.course.service;
 import com.lms.common.domain.dto.PageDTO;
 import com.lms.course.course.domain.dto.CourseCardVO;
 import com.lms.course.course.domain.dto.CourseFormDTO;
+import com.lms.course.course.domain.dto.EnrollRuleForm;
 import com.lms.course.course.domain.query.CoursePageQuery;
 import com.lms.course.course.domain.vo.CourseTopVO;
 
@@ -36,6 +37,14 @@ public interface ICourseService {
     void updateCourse(Long id, CourseFormDTO dto);
 
     /**
+     * 教师删除自己创建的课程（级联删除选课/目录/章节，并清理 Python RAG 该课程知识库）
+     *
+     * @param id 课程 id
+     * @throws CommonException 课程不存在（COURSE_NOT_FOUND）、非本人课程（Forbidden）
+     */
+    void deleteCourse(Long id);
+
+    /**
      * 教师上下架自己创建的课程
      *
      * @param id     课程 id
@@ -54,6 +63,15 @@ public interface ICourseService {
      * @throws CommonException 课程不存在、非本人课程、窗口时间不合法
      */
     void publish(Long id, LocalDateTime grabStartTime, LocalDateTime grabEndTime, Integer stock);
+
+    /** 读取课程选课资格规则（教师；无规则返回 null=不限选） */
+    String getEnrollRule(Long courseId);
+
+    /** 保存课程选课资格规则（教师本人课程；rules 空 = 不限选） */
+    void saveEnrollRule(Long courseId, EnrollRuleForm form);
+
+    /** 删除课程选课资格规则（不限选） */
+    void removeEnrollRule(Long courseId);
 
     /**
      * 前台课程卡片分页（只展示已发布课程，附实时选课人数）

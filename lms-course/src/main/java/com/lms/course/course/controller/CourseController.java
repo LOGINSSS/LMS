@@ -2,12 +2,18 @@ package com.lms.course.course.controller;
 
 import com.lms.common.domain.R;
 import com.lms.common.domain.dto.PageDTO;
+import com.lms.common.utils.UserContext;
 import com.lms.course.course.domain.dto.CourseCardVO;
 import com.lms.course.course.domain.query.CoursePageQuery;
+import com.lms.course.course.domain.vo.EligibilityVO;
+import com.lms.course.course.eligibility.EligibilityService;
+import com.lms.course.course.service.CategoryService;
 import com.lms.course.course.service.ICourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +32,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class CourseController {
 
     private final ICourseService courseService;
+    private final EligibilityService eligibilityService;
+    private final CategoryService categoryService;
+
+    /** 课程分类标签列表（全局共享，Redis 缓存；教师建课/学生筛选下拉共用） */
+    @GetMapping("/categories")
+    @Operation(summary = "课程分类标签列表（全局）")
+    public R<List<String>> categories() {
+        return R.ok(categoryService.list());
+    }
 
     /** 课程卡片分页（只展示已发布课程，供前端渲染课程列表） */
     @GetMapping("/page")
@@ -62,5 +77,12 @@ public class CourseController {
     @Operation(summary = "我选过的课程")
     public R<PageDTO<CourseCardVO>> queryEnrolled(CoursePageQuery query) {
         return R.ok(courseService.queryEnrolledCourses(query));
+    }
+
+    /** 选课资格判定（当前登录学生 vs 课程规则）：课程广场/详情提示与报名按钮态 */
+    @GetMapping("/{id}/eligibility")
+    @Operation(summary = "选课资格判定（当前用户是否可报名本课程）")
+    public R<EligibilityVO> eligibility(@PathVariable("id") Long id) {
+        return R.ok(eligibilityService.check(UserContext.getUser(), id));
     }
 }

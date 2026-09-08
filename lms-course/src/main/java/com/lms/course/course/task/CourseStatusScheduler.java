@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.lms.course.course.domain.po.Course;
 import com.lms.course.course.enums.CourseStatus;
 import com.lms.course.course.mapper.CourseMapper;
+import com.lms.course.course.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,6 +25,7 @@ import java.time.LocalDateTime;
 public class CourseStatusScheduler {
 
     private final CourseMapper courseMapper;
+    private final CategoryService categoryService;
 
     /** 待发布 → 抢课中：每 30 秒扫描一次，到 grab_start_time 的课程进入抢课中 */
     @Scheduled(fixedDelay = 30000)
@@ -35,6 +37,8 @@ public class CourseStatusScheduler {
                 .set(Course::getStatus, CourseStatus.GRABBING.getValue()));
         if (updated > 0) {
             log.info("课程状态流转：{} 门课程进入抢课中", updated);
+            // 【分类索引】新进入可见状态 → 补入分类 SET（无 TTL；不删旧，读时过滤）
+            categoryService.resyncVisible();
         }
     }
 

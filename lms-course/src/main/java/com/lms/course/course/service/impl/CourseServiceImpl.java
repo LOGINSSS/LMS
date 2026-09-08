@@ -14,6 +14,11 @@ import com.lms.common.utils.BeanUtils;
 import com.lms.common.utils.CollUtils;
 import com.lms.common.utils.UserContext;
 import com.lms.course.course.client.GrabClient;
+import com.lms.course.course.domain.dto.EnrollRuleForm;
+import com.lms.course.course.eligibility.EligibilityService;
+import com.lms.course.course.domain.vo.EligibilityVO;
+
+import java.util.Objects;
 import com.lms.course.course.client.KbClient;
 import com.lms.course.course.client.UserClient;
 import com.lms.course.course.client.dto.UserSimpleDTO;
@@ -31,10 +36,12 @@ import com.lms.course.course.mapper.CourseCatalogMapper;
 import com.lms.course.course.mapper.CourseChapterMapper;
 import com.lms.course.course.mapper.CourseEnrollmentMapper;
 import com.lms.course.course.mapper.CourseMapper;
+import com.lms.course.course.service.CategoryService;
 import com.lms.course.course.service.CourseCacheService;
 import com.lms.course.course.service.ICourseService;
 import com.lms.course.course.domain.vo.CourseTopVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +63,7 @@ import java.util.stream.Collectors;
  * 本服务通过 Nacos 配置 lms.mvc.user-header-enabled=true 开启）。
  * 权限规则：建课/管理仅限教师本人（userType=2）；选课/退课仅限学生（userType=1）。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CourseServiceImpl implements ICourseService {
@@ -66,8 +74,10 @@ public class CourseServiceImpl implements ICourseService {
     private final CourseChapterMapper chapterMapper;
     private final UserClient userClient;
     private final GrabClient grabClient;
+    private final EligibilityService eligibilityService;
     private final KbClient kbClient;
     private final CourseCacheService courseCacheService;
+    private final CategoryService categoryService;
 
     /** 跨服务查询教师昵称失败时的兜底署名 */
     private static final String DEFAULT_TEACHER_NAME = "教师";
@@ -93,12 +103,17 @@ public class CourseServiceImpl implements ICourseService {
         if (courseMapper.insert(course) <= 0) {
             throw new CommonException(CourseErrorInfo.COURSE_SAVE_FAILED);
         }
-        //5. 自动创建课程知识库（spec 0.2 §8.1，幂等；失败降级不阻断建课）
+        //5. 自动创建课程知识库（Python RAG 单集合 + course_id 分区，幂等；失败降级不阻断建课）
         Map<String, Object> kbBody = new java.util.HashMap<>();
         kbBody.put("courseId", course.getId());
         kbBody.put("ownerType", 1);
         kbBody.put("name", course.getName());
-        kbClient.createKb(kbBody);
+        try {
+            kbClient.createKb(kbBody);
+        } catch (Exception e) {
+            // 【保障机制】RAG 服务不可用不阻断建课：课程先落库成功，知识库后续可补
+            log.warn("课程知识库创建失败（不阻断建课）courseId={}: {}", course.getId(), e.getMessage());
+        }
         return course.getId();
     }
 
@@ -115,6 +130,43 @@ public class CourseServiceImpl implements ICourseService {
         }
         //3. 失效课程详情缓存
         courseCacheService.evictCourseDetail(id);
+        //4. 可见状态下修改分类 → 旧分类 SET 移出、新分类 SET 补入（集合保持精确）
+        if (course.getStatus() != null
+                && (course.getStatus() == CourseStatus.GRABBING.getValue()
+                || course.getStatus() == CourseStatus.ONGOING.getValue())
+                && StrUtil.isNotBlank(dto.getCategory())
+                && !StrUtil.equals(course.getCategory(), dto.getCategory().trim())) {
+            categoryService.removeVisible(course.getId(), course.getCategory());
+            categoryService.indexVisible(course.getId(), dto.getCategory().trim());
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCourse(Long id) {
+        //1. 校验课程存在且为当前教师本人创建
+        Course course = getOwnCourse(id);
+        //2. 级联删除业务数据：选课 → 目录/章节 → 课程本体（逻辑删除，列表不再可见）
+        enrollmentMapper.delete(new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, id));
+        List<CourseCatalog> nodes = catalogMapper.selectList(new LambdaQueryWrapper<CourseCatalog>()
+                .eq(CourseCatalog::getCourseId, id));
+        if (CollUtils.isNotEmpty(nodes)) {
+            List<Long> catalogIds = nodes.stream().map(CourseCatalog::getId).collect(Collectors.toList());
+            chapterMapper.delete(new LambdaQueryWrapper<CourseChapter>().in(CourseChapter::getCatalogId, catalogIds));
+            catalogMapper.delete(new LambdaQueryWrapper<CourseCatalog>().eq(CourseCatalog::getCourseId, id));
+        }
+        courseMapper.deleteById(id);
+        //3. 清理 Python RAG 该课程知识库（向量+文档；失败降级不阻断删课，可后续手动清理）
+        try {
+            kbClient.deleteCourse(id);
+        } catch (Exception e) {
+            log.warn("清理课程知识库失败（不阻断删课）courseId={}: {}", id, e.getMessage());
+        }
+        //4. 失效课程缓存
+        courseCacheService.evictCourseDetail(id);
+        courseCacheService.evictCatalog(id);
+        //5. 从分类 SET 移除该课程 id（保持集合=当前可见课程）
+        categoryService.removeVisible(course.getId(), course.getCategory());
     }
 
     @Override
@@ -129,6 +181,18 @@ public class CourseServiceImpl implements ICourseService {
         courseMapper.updateById(update);
         //3. 失效课程详情缓存
         courseCacheService.evictCourseDetail(id);
+        //4. 分类 SET 维护：离开可见(2/3) → 移出；进入可见 → 补入（保持集合=当前可见课程）
+        boolean wasVisible = course.getStatus() != null
+                && (course.getStatus() == CourseStatus.GRABBING.getValue()
+                || course.getStatus() == CourseStatus.ONGOING.getValue());
+        boolean willVisible = update.getStatus() != null
+                && (update.getStatus() == CourseStatus.GRABBING.getValue()
+                || update.getStatus() == CourseStatus.ONGOING.getValue());
+        if (wasVisible && !willVisible) {
+            categoryService.removeVisible(course.getId(), course.getCategory());
+        } else if (!wasVisible && willVisible) {
+            categoryService.indexVisible(course.getId(), course.getCategory());
+        }
     }
 
     @Override
@@ -155,12 +219,17 @@ public class CourseServiceImpl implements ICourseService {
                 stock == null ? 0 : stock);
         //5. 失效课程详情缓存
         courseCacheService.evictCourseDetail(id);
-        //6. 课程正文一键同步入知识库（spec 0.2 §8.1，失败降级不阻断发布）
+        //6. 课程正文一键同步入知识库（Python RAG ingest；失败降级不阻断发布）
         String md = buildCourseMarkdown(course.getId());
         if (md != null && !md.isBlank()) {
             Map<String, String> syncBody = new java.util.HashMap<>();
             syncBody.put("mdText", md);
-            kbClient.syncCourseText(course.getId(), syncBody);
+            try {
+                kbClient.syncCourseText(course.getId(), syncBody);
+            } catch (Exception e) {
+                // 【保障机制】RAG 不可用/同步失败不阻断发布，正文可在编辑内容时重试同步
+                log.warn("课程正文同步知识库失败（不阻断发布）courseId={}: {}", course.getId(), e.getMessage());
+            }
         }
     }
 
@@ -193,8 +262,60 @@ public class CourseServiceImpl implements ICourseService {
     }
 
     @Override
+    public String getEnrollRule(Long courseId) {
+        assertTeacher();
+        return eligibilityService.getRuleJson(courseId);
+    }
+
+    @Override
+    public void saveEnrollRule(Long courseId, EnrollRuleForm form) {
+        Long teacherId = assertTeacher();
+        requireOwnCourse(courseId, teacherId);
+        eligibilityService.save(courseId, form);
+    }
+
+    @Override
+    public void removeEnrollRule(Long courseId) {
+        Long teacherId = assertTeacher();
+        requireOwnCourse(courseId, teacherId);
+        eligibilityService.remove(courseId);
+    }
+
+    /** 校验课程归属当前教师（管理端规则/排期等操作） */
+    private void requireOwnCourse(Long courseId, Long teacherId) {
+        Course course = courseMapper.selectById(courseId);
+        AssertUtils.notNull(course, CourseErrorInfo.COURSE_NOT_FOUND.getMsg());
+        if (!Objects.equals(course.getTeacherId(), teacherId)) {
+            throw new ForbiddenException("只能管理自己创建的课程");
+        }
+    }
+
+    @Override
     public PageDTO<CourseCardVO> queryPublishedPage(CoursePageQuery query) {
-        //1. 分页查询可被学生看到的课程：抢课中/进行中（status 2/3）
+        //0. 无关键词时走「分类 SET 索引 → 课程详情缓存」路径（全部分类 = 所有分类 set 并集）；
+        //   有关键词无法用分类索引，回退 DB 检索
+        if (StrUtil.isBlank(query.getKeyword())) {
+            List<Long> ids = categoryService.unionVisibleIds(query.getCategory());
+            long total = ids.size();
+            int pageNo = query.getPageNo() == null ? 1 : query.getPageNo();
+            int size = query.getPageSize() == null ? 20 : query.getPageSize();
+            int from = (pageNo - 1) * size;
+            if (from >= total) {
+                return PageDTO.of(total, Collections.emptyList());
+            }
+            int to = Math.min((int) total, from + size);
+            List<CourseCardVO> vos = new java.util.ArrayList<>();
+            for (Long id : ids.subList(from, to)) {
+                CourseCardVO card = visibleCardCache(id);
+                if (card != null) {
+                    vos.add(card);
+                }
+            }
+            // 选课人数实时填充（覆盖缓存里的旧值）
+            fillTotalCount(vos);
+            return PageDTO.of(total, vos);
+        }
+        //1. DB 检索路径（关键词）
         Page<Course> page = query.toMpPageDefaultSortByCreateTimeDesc();
         courseMapper.selectPage(page, publishedWrapper(query));
         //2. 转卡片 VO 并填充实时选课人数
@@ -203,8 +324,33 @@ public class CourseServiceImpl implements ICourseService {
         return PageDTO.of(page.getTotal(), vos);
     }
 
+    /**
+     * 广场卡片：course:detail:{id} 缓存读取（未命中回源），仅放行可见状态(2/3)，
+     * 失效/已下架课程返回 null（分类 SET 不做删除，靠这里读时过滤）。
+     */
+    private CourseCardVO visibleCardCache(Long id) {
+        return courseCacheService.getCourseDetail(id, () -> {
+            Course c = courseMapper.selectById(id);
+            if (c == null || c.getStatus() == null
+                    || (c.getStatus() != CourseStatus.GRABBING.getValue()
+                    && c.getStatus() != CourseStatus.ONGOING.getValue())) {
+                return null;
+            }
+            return BeanUtils.copyBean(c, CourseCardVO.class);
+        });
+    }
+
     @Override
     public CourseCardVO getCourseDetail(Long id) {
+        //0. 创建教师本人查看自己课程（含草稿/待发布等未开放状态）：直查直返，不走前台缓存，
+        //   避免草稿内容经缓存对他人可见（发布时详情缓存已主动失效，学生端仍只放行 2/3）
+        if (isOwnerTeacher(id)) {
+            Course course = courseMapper.selectById(id);
+            AssertUtils.notNull(course, CourseErrorInfo.COURSE_NOT_FOUND.getMsg());
+            CourseCardVO vo = BeanUtils.copyBean(course, CourseCardVO.class);
+            fillTotalCount(Collections.singletonList(vo));
+            return vo;
+        }
         //1. 走缓存：命中直接返回，未命中回源并回填（Cache-Aside，spec 0.2 §5.1）
         return courseCacheService.getCourseDetail(id, () -> {
             //1.1 查课程：不存在或未开放（非 2/3）均视为不可见（对前台统一拒绝）
@@ -252,6 +398,11 @@ public class CourseServiceImpl implements ICourseService {
         }
         if (course.getStatus() == CourseStatus.GRABBING.getValue() && course.getStock() != null && course.getStock() > 0) {
             throw new CommonException(CourseErrorInfo.GRAB_REQUIRED);
+        }
+        //2.5 选课资格校验（course_enroll_rule：仅限指定范围学生，如 大三/已修完先修课/积分达标）
+        EligibilityVO eligibility = eligibilityService.check(studentId, courseId);
+        if (!eligibility.isAllowed()) {
+            throw new CommonException("不符合本课程选课条件：" + String.join("；", eligibility.getReasons()));
         }
         //3. 幂等处理：查该课程下选课记录（任意状态）
         //   选课中 → 报已选；已退课 → 复用记录翻回选课中（避免撞 uk_course_student 唯一键）
@@ -383,6 +534,19 @@ public class CourseServiceImpl implements ICourseService {
             throw new ForbiddenException("只能管理自己创建的课程");
         }
         return course;
+    }
+
+    /**
+     * 当前用户是否为该课程的创建教师（未登录/非教师/非本人均返回 false）
+     */
+    private boolean isOwnerTeacher(Long id) {
+        Long userId = UserContext.getUser();
+        Integer userType = UserContext.getUserType();
+        if (userId == null || userType == null || userType != UserType.TEACHER.getValue()) {
+            return false;
+        }
+        Course course = courseMapper.selectById(id);
+        return course != null && course.getTeacherId() != null && course.getTeacherId().equals(userId);
     }
 
     /**
