@@ -1,0 +1,431 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/LOGINSSS/LMS/main/docs/api-schemas/ai-output.schema.json",
+  "title": "AI 输出产物契约（管道/Agent 返回的结构化 JSON）",
+  "description": "AI 返回内容的 JSON Schema：所有 LLM 生成的结构化数据（评测管道产物、判卷报告、AI 出题/出卷/作业题快照）必须符合本契约，且每个 AI 返回点都必须经过 schema 校验（见 AiEnvelope/ValidationInfo）。prompt 中内嵌的 JSON 示例与解析端（LearningPipelineService.extractGraded / 0.3 管道）以本文件为准。",
+  "$defs": {
+
+    "AiEnvelope": {
+      "type": "object",
+      "description": "AI 返回统一信封：所有 AI 输出点（管道产物/判卷/出题/出卷/图片提取）经 schema 校验后统一以此包装返回。valid=false 时必须标记并严格要求 LLM 重新生成（重试策略见 V0.3演进Spec §5.4）",
+      "required": ["payload", "validation"],
+      "properties": {
+        "payload": {
+          "description": "产物本体：DiagnoseReport / PlanPath / ExercisePack / AssessReport / GeneratedQuestionPack / GeneratedPaper / GeneratedHomeworkQuestion / JudgementResult / ImageQuestionExtract 之一（由管道类型决定）"
+        },
+        "validation": { "$ref": "#/$defs/ValidationInfo" }
+      },
+      "additionalProperties": false
+    },
+
+    "ValidationInfo": {
+      "type": "object",
+      "description": "AI 返回 schema 校验结果（所有 AI 返回点强制执行）",
+      "required": ["valid", "status", "retryCount"],
+      "properties": {
+        "valid": { "type": "boolean", "description": "是否通过对应产物的 JSON Schema 校验" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "needs_review", "failed"],
+          "description": "ok=校验通过；needs_review=校验失败但可标记降级（客观题兜底/待人工复核）；failed=重试耗尽仍失败"
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "校验失败明细（如 \"payload.questions[0].questionId missing\"），回传给 LLM 要求修正"
+        },
+        "retryCount": { "type": "integer", "minimum": 0, "description": "已要求 LLM 重新生成的次数（0=首次）" },
+        "maxRetries": { "type": "integer", "minimum": 0, "default": 2, "description": "最大重试次数，超过则 status=failed" }
+      },
+      "additionalProperties": false
+    },
+
+    "DiagnoseReport": {
+      "type": "object",
+      "description": "管道① 学情诊断报告（diagnose-agent 输出；prompt 要求输出 JSON）",
+      "required": ["diagnosis", "weakPoints"],
+      "properties": {
+        "diagnosis": { "type": "string", "description": "学情总评（文本）" },
+        "weakPoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "薄弱知识点列表（诊断依据，供规划节点输入）"
+        },
+        "strongPoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "掌握较好的知识点（可选）"
+        },
+        "mastery": {
+          "type": "object",
+          "description": "知识点掌握度 {知识点: 0-100}",
+          "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 100 }
+        },
+        "summary": { "type": "string", "description": "总结与建议（可选）" }
+      },
+      "additionalProperties": false
+    },
+
+    "PlanPath": {
+      "type": "object",
+      "description": "管道② 学习路径（plan-agent 输出）",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "array",
+          "description": "学习路径步骤（覆盖薄弱知识点）",
+          "items": {
+            "type": "object",
+            "required": ["step", "knowledgePoint"],
+            "properties": {
+              "step": { "type": "integer", "description": "步骤序号（从1开始）" },
+              "knowledgePoint": { "type": "string", "description": "知识点" },
+              "action": { "type": "string", "description": "学习动作（读章节/做练习/看课次）" },
+              "priority": { "type": "string", "enum": ["high", "medium", "low"], "description": "优先级" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "summary": { "type": "string", "description": "路径说明（可选）" }
+      },
+      "additionalProperties": false
+    },
+
+    "ExercisePack": {
+      "type": "object",
+      "description": "管道③ 习题推送包（exercise-agent 输出；题目必须来自题库真实检索，禁止编造 id）",
+      "required": ["questions"],
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExerciseItem" }
+        },
+        "totalCount": { "type": "integer", "description": "题目数量（可选冗余）" }
+      },
+      "additionalProperties": false
+    },
+
+    "ExerciseItem": {
+      "type": "object",
+      "description": "习题项（来自题库 question，含判分所需字段）",
+      "required": ["questionId", "type", "category"],
+      "properties": {
+        "questionId": { "type": "integer", "description": "题目 id（真实题库 id）" },
+        "name": { "type": "string", "description": "题干（可选，展示用）" },
+        "type": { "type": "integer", "enum": [1, 2, 3, 4], "description": "题型" },
+        "category": { "type": "string", "description": "知识点/分类" },
+        "difficulty": { "type": "integer", "enum": [1, 2, 3], "description": "难度" },
+        "score": { "type": "integer", "description": "本题分值（可选，评测默认1）" }
+      },
+      "additionalProperties": false
+    },
+
+    "AssessReport": {
+      "type": "object",
+      "description": "管道④ 评测报告（assess-agent 输出；LearningPipelineService.extractGraded 严格按 gradedQuestions 解析）",
+      "required": ["gradedQuestions", "totalScore"],
+      "properties": {
+        "gradedQuestions": {
+          "type": "array",
+          "description": "每题判分明细",
+          "items": {
+            "type": "object",
+            "required": ["questionId", "correct", "score"],
+            "properties": {
+              "questionId": { "type": "integer" },
+              "correct": { "type": "integer", "enum": [0, 1], "description": "1 对 / 0 错" },
+              "score": { "type": "integer", "minimum": 0, "description": "本题得分" },
+              "knowledgePoint": { "type": "string", "description": "知识点（回写 exercise_record 用）" },
+              "questionType": { "type": "integer", "enum": [1, 2, 3, 4], "description": "题型" },
+              "userAnswer": { "type": "string", "description": "学生作答（回显）" },
+              "comment": { "type": "string", "description": "AI 评语（主观题，可选）" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "totalScore": { "type": "integer", "minimum": 0, "description": "总分" },
+        "mastery": {
+          "type": "object",
+          "description": "知识点掌握度 {知识点: 0-100}",
+          "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 100 }
+        },
+        "weakPoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "薄弱点（可选）"
+        },
+        "summary": { "type": "string", "description": "评估总结与建议" },
+        "validation": {
+          "type": "object",
+          "description": "本产物在校验信封内的校验结果（valid/status/errors/retryCount），落库时随报告留存",
+          "properties": {
+            "valid": { "type": "boolean" },
+            "status": { "type": "string", "enum": ["ok", "needs_review", "failed"] },
+            "errors": { "type": "array", "items": { "type": "string" } },
+            "retryCount": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "GeneratedQuestion": {
+      "type": "object",
+      "description": "AI 出题产物（question-gen 管道输出；落库前回显教师确认）",
+      "required": ["name", "type", "difficulty", "answer"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 255, "description": "题干" },
+        "type": { "type": "integer", "enum": [1, 2, 3, 4], "description": "题型（含主观题 4）" },
+        "category": { "type": "string", "maxLength": 50, "description": "知识点/分类" },
+        "difficulty": { "type": "integer", "enum": [1, 2, 3], "description": "难度" },
+        "analysis": { "type": "string", "maxLength": 500, "description": "解析" },
+        "answer": {
+          "description": "答案 JSON 字符串：单选{\"option\":\"A\"} / 多选{\"options\":[\"A\",\"B\"]} / 判断{\"judge\":true} / 主观题{\"points\":[\"要点1\",\"要点2\"]}",
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "可选附件（图片 url）",
+          "items": {
+            "type": "object",
+            "required": ["url", "name", "type"],
+            "properties": {
+              "url": { "type": "string", "format": "uri" },
+              "name": { "type": "string" },
+              "type": { "type": "string", "enum": ["image", "file"] }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "GeneratedQuestionPack": {
+      "type": "object",
+      "description": "AI 出题管道整体产物（一批题目 + 校验信息）",
+      "required": ["questions"],
+      "properties": {
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/GeneratedQuestion" }
+        },
+        "invalidCount": { "type": "integer", "description": "校验丢弃的题目数（可选）" }
+      },
+      "additionalProperties": false
+    },
+
+    "GeneratedPaper": {
+      "type": "object",
+      "description": "AI 出卷产物（paper-gen 管道输出；覆盖校验后落库 paper + paper_question）",
+      "required": ["title", "questions"],
+      "properties": {
+        "title": { "type": "string", "maxLength": 100, "description": "试卷标题" },
+        "desc": { "type": "string", "maxLength": 500, "description": "试卷说明" },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "description": "组卷题目（必须来自题库真实 id，禁止编造）",
+          "items": {
+            "type": "object",
+            "required": ["questionId", "score", "seq"],
+            "properties": {
+              "questionId": { "type": "integer" },
+              "seq": { "type": "integer", "minimum": 1, "description": "题序" },
+              "score": { "type": "integer", "minimum": 0, "description": "本题分值" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "totalScore": { "type": "integer", "description": "总分（服务端汇总，可选）" },
+        "coverage": {
+          "type": "object",
+          "description": "知识点覆盖情况（校验用）",
+          "properties": {
+            "covered": { "type": "array", "items": { "type": "string" } },
+            "missing": { "type": "array", "items": { "type": "string" }, "description": "未覆盖的知识点（触发 AI 补题）" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "GeneratedHomeworkQuestion": {
+      "type": "object",
+      "description": "AI 作业题产物（homework_question 快照；概念题，不入题库）",
+      "required": ["seq", "name", "points"],
+      "properties": {
+        "seq": { "type": "integer", "minimum": 1, "description": "题序" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 255, "description": "题干（概念题）" },
+        "points": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "参考要点（判卷 rubric 依据）"
+        },
+        "knowledgePoint": { "type": "string", "description": "对应知识点" },
+        "difficulty": { "type": "integer", "enum": [1, 2, 3], "description": "难度（可选）" },
+        "attachments": {
+          "type": "array",
+          "description": "可选附件（图片 url）",
+          "items": {
+            "type": "object",
+            "required": ["url", "name", "type"],
+            "properties": {
+              "url": { "type": "string", "format": "uri" },
+              "name": { "type": "string" },
+              "type": { "type": "string", "enum": ["image", "file"] }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "HomeworkPack": {
+      "type": "object",
+      "description": "AI 作业出题管道产物（一组概念题快照）",
+      "required": ["title", "questions"],
+      "properties": {
+        "title": { "type": "string", "description": "作业标题" },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/GeneratedHomeworkQuestion" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "JudgementResult": {
+      "type": "object",
+      "description": "AI 语义判卷产物（judge 管道输出；客观题 QuestionChecker 确定性兜底）",
+      "required": ["gradedQuestions", "totalScore"],
+      "properties": {
+        "gradedQuestions": {
+          "type": "array",
+          "description": "每题判分（含主观题语义批改）",
+          "items": {
+            "type": "object",
+            "required": ["questionId", "score"],
+            "properties": {
+              "questionId": { "type": "integer" },
+              "score": { "type": "integer", "minimum": 0, "description": "本题得分" },
+              "correct": { "type": "integer", "enum": [0, 1], "description": "1 对 / 0 错（客观题）" },
+              "judgeType": { "type": "integer", "enum": [1, 2], "description": "1 客观比对 / 2 AI 语义" },
+              "comment": { "type": "string", "description": "AI 评语（主观题）" },
+              "needsReview": { "type": "boolean", "description": "true=LLM 解析失败待人工复核" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "totalScore": { "type": "integer", "minimum": 0, "description": "总分" },
+        "summary": { "type": "string", "description": "整体评语（可选）" }
+      },
+      "additionalProperties": false
+    },
+
+    "RagAnswer": {
+      "type": "object",
+      "description": "RAG 生成答案（lms-kb generateNode 输出；对应 RagResponse）",
+      "required": ["answer"],
+      "properties": {
+        "answer": { "type": "string", "minLength": 1, "description": "生成答案（必填，空则视为生成失败）" },
+        "sources": {
+          "type": "array",
+          "description": "答案来源（溯源/RAGAS）",
+          "items": {
+            "type": "object",
+            "required": ["source", "docType"],
+            "properties": {
+              "source": { "type": "string" },
+              "docType": { "type": "string" },
+              "text": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ProfileSummary": {
+      "type": "object",
+      "description": "画像摘要（lms-ai ProfileService.callSummaryModel 输出；LLM 压缩行为流水）",
+      "required": ["summary"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1, "description": "画像摘要文本（必填，空则标记失败重试）" },
+        "interests": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "提炼的兴趣标签（可选，结构化加分项）"
+        },
+        "weakPoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "提炼的薄弱点（可选）"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ImageDescription": {
+      "type": "object",
+      "description": "图片描述产物（lms-kb ImageProcessor.describe / ocr 输出；多模态 VLM）",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "description": "图片语义描述或 OCR 文字（空则视为提取失败，走降级）" },
+        "kind": { "type": "string", "enum": ["image_description", "image_ocr"], "description": "产物类型" }
+      },
+      "additionalProperties": false
+    },
+
+    "ChatReply": {
+      "type": "object",
+      "description": "对话回复（lms-ai ChatService / AgentChatService 输出；自由文本，仅约束非空与长度）",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 8000, "description": "对话回复文本（空回复视为生成失败）" }
+      },
+      "additionalProperties": false
+    },
+
+    "ImageQuestionExtract": {
+      "type": "object",
+      "description": "图片供题提取产物（OCR + VLM；回显教师确认后落库）",
+      "required": ["name", "type", "attachments"],
+      "properties": {
+        "name": { "type": "string", "description": "OCR/VLM 提取的题干" },
+        "type": { "type": "integer", "enum": [1, 2, 3, 4], "description": "推测题型（教师可改）" },
+        "category": { "type": "string", "description": "推测知识点" },
+        "difficulty": { "type": "integer", "enum": [1, 2, 3], "description": "推测难度" },
+        "answer": {
+          "type": ["string", "null"],
+          "description": "提取的答案 JSON 字符串（可能为空，教师补全）"
+        },
+        "analysis": { "type": "string", "description": "提取的解析（可选）" },
+        "attachments": {
+          "type": "array",
+          "minItems": 1,
+          "description": "原图附件（必须含上传的图片 url）",
+          "items": {
+            "type": "object",
+            "required": ["url", "name", "type"],
+            "properties": {
+              "url": { "type": "string", "format": "uri" },
+              "name": { "type": "string" },
+              "type": { "type": "string", "enum": ["image", "file"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "ocrText": { "type": "string", "description": "OCR 原始文本（排障/人工核对用，可选）" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

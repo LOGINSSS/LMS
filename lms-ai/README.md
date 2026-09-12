@@ -1,11 +1,11 @@
 # lms-ai AI 能力服务
 
-> AgentScope Java + 阿里云百炼 DashScope（OpenAI 兼容模式）：**单轮 chat（阶段 0）+ 个人 Agent 体系**（个人 Agent / 子 Agent / 两层记忆[会话+画像] / 邀请制编排 / IM 管道 / 定时任务，spec 见 `docs/PERSONAL_AGENT_SPEC.md`）。
+> AgentScope Java + 阿里云百炼 DashScope（OpenAI 兼容模式）：**单轮 chat（阶段 0）+ 个人 Agent 体系**（个人 Agent / 子 Agent / Session 上下文 / 画像与 ReMe 个人 Wiki / 邀请制编排 / IM 管道 / 定时任务）。
 
 ## 职责定位
 
 - 分层：**业务层**（AI 能力 / Agent 运行时）
-- 依赖：lms-common（Feign/工具/ORM/Redis/Kafka）、agentscope-core、agentscope-openai-spring-boot-starter、agentscope-extensions-model-openai、agentscope-extensions-reme（ReMe 记忆）
+- 依赖：lms-common（Feign/工具/ORM/Redis/Kafka）、agentscope-core、agentscope-openai-spring-boot-starter、agentscope-extensions-model-openai；ReMe 通过当前 HTTP Job API 对接
 - 配置：本地 `application.yml` 兜底，Nacos `lms-ai.yaml` 为唯一配置源（`scripts/push-nacos-config.ps1` 推送）
 
 ## 运行信息
@@ -50,8 +50,10 @@
 | POST | `/agent/chat` | 个人 agent 多轮对话 `{sessionId?, text, agentType: student\|teacher}` | 登录 |
 | POST | `/agent/sessions` | 建会话 | 登录 |
 | GET | `/agent/sessions/mine` | 我的会话列表 | 登录 |
-| DELETE | `/agent/sessions/{id}` | 结束会话（L1 摘要 → L2） | 登录 |
+| DELETE | `/agent/sessions/{id}` | 结束会话并异步触发 ReMe Auto Memory | 登录 |
 | GET/POST | `/agent/profile/mine` | 我的画像（L2，「记住我」） | 登录 |
+| POST | `/agent/memory/wiki` | 显式写入我的 ReMe 个人 Wiki | 登录 |
+| PATCH/DELETE | `/agent/memory/wiki/{memoryId}` | 更正原文 / 删除我的 Wiki 记忆 | 登录 |
 | POST | `/agent/ask-teacher` | 学生问题 → student-agent → teacher-agent（IM/定时任务编排） | 登录 |
 | POST | `/agent/teacher/generate-exam` | 老师调度 exam-agent 出大纲/题目 | 登录 |
 | POST | `/agent/teacher/generate-course` | 老师调度 course-agent 建课+大纲+章节 HTML | 登录 |
@@ -75,25 +77,31 @@
 
 工具封装统一走 `ToolFactory`：声明 `tools: [exam.saveQuestion]` → 前缀映射工具 Bean → `Toolkit.registerTool`（`@Tool` 方法自动生成 JSON Schema）。
 
-## 两层记忆（spec §4 简化：L3 个人知识库不再作为记忆层）
+## Context 与 Memory
 
-> 设计取舍：L3 知识文档记忆需要用户主动沉淀文档，练手场景意义有限（属过度设计），
-> 已从 agent 记忆体系移除；个人知识库的 lms-kb owner 扩展保留为普通业务能力（课程库主场景不受影响）。
-> ReMe 从对话轨迹积淀的正是"习惯/偏好/薄弱点"层（L2），与文档 RAG 无关。
+Session 是短期消息来源，MySQL 画像和 ReMe 个人 Wiki 是长期记忆来源，`ContextAssembler`
+在每轮调用前统一装配它们。个人 Wiki 是用户拥有、可编辑和可删除的 Markdown 文件，不等同于课程知识库 RAG。
 
 | 层 | 实现 | 存储 |
 |---|---|---|
 | L1 会话 | `AgentSessionService`（元数据 + Redis 消息，上下文裁剪） | MySQL `agent_session` + Redis |
-| L2 画像/习惯 | **AgentScope ReMe**（`ReMeMemoryFactory` → `ReMeLongTermMemory`：对话轨迹提取-遗忘-整合-检索注入，workspaceId=`user_{userId}` 一人一记忆空间）；未部署 ReMe 时回退 `ProfileLongTermMemory`（MySQL 画像 + LLM 摘要压缩） | ReMe 服务端 / MySQL `agent_user_profile/agent_user_behavior` |
+| L2 画像/习惯 | `ProfileMemoryAdapter`，由行为事件和用户显式画像维护 | MySQL `agent_user_profile/agent_user_behavior` |
+| 个人 Wiki | `ReMeMemoryAdapter` → `ReMeHttpJobClient`，检索 Top-5，支持显式写入/更正/删除 | 用户独立 ReMe workspace 中的 Markdown |
+| 会话沉淀 | `SessionClosureService` → MySQL Outbox → `ReMeSessionMemoryAdapter` → `/auto_memory` | `agent_memory_outbox` + `session/dialog` 来源 + `daily` 记忆卡片 |
 
-### ReMe 长期记忆（阿里通义实验室，AgentScope 官方记忆扩展）
+### ReMe 文件原生个人 Wiki
 
-- 依赖：`io.agentscope:agentscope-extensions-reme`（Maven Central 1.0.12），实现 AgentScope `LongTermMemory`，经 `ReActAgent.Builder.longTermMemory()` + `STATIC_CONTROL` 模式自动 record/retrieve
-- **部署 ReMe 服务端**（二选一，参考官方仓库 [agentscope-ai/ReMe](https://github.com/agentscope-ai/ReMe) 与 [docs.agentscope.io/reme](https://docs.agentscope.io/reme/latest/zh/overview)）：
-  1. 本地 Docker 部署（file-native 记忆系统，无需外部数据库），暴露 `POST /retrieve_personal_memory`、`POST /summary_personal_memory`
-  2. 通义百炼云服务（托管 endpoint + API key）
-- 启用：`lms.ai.agent.reme.enabled=true` + `lms.ai.agent.reme.base-url=http://<host>:<port>`；超时默认 3s（官方默认 60s 偏长，避免记忆检索拖慢对话）
-- 回退：未配置 base-url / enabled=false 时自动使用 MySQL 画像记忆（`ProfileLongTermMemory`），对话不受影响
+- 使用当前 ReMe Job API：`POST /search|write|edit|delete|auto_memory`，不再依赖旧版 `agentscope-extensions-reme` Java 接口。
+- 会话关闭前复制最多 40 条 user/assistant 消息，每条最多 8000 字符；Outbox 入库与 MySQL 会话关闭处于同一事务，事务提交后才清理 Redis 原始消息。
+- 后台按批次领取任务，PROCESSING 租约支持实例崩溃接管；ReMe 失败按指数退避，默认 5 次后进入 DEAD。成功后清空 Outbox 消息 payload，只保留投递审计元数据。
+- Auto Memory 只生成 `daily` 层；ReMe 默认后台 `dream_cron`/`auto_dream` 再把可复用内容归并到 `digest`。远端调用失败不回滚会话关闭；Outbox 写库失败则保留短期消息并让关闭请求失败，供调用方重试。
+- `/write` 按当前契约发送 `path/name/description/content`，而不是自行拼装 frontmatter。
+- 首版检索由 ReMe 默认 BM25 + WikiLink 扩展完成，`limit=5`；embedding 不是前置依赖。
+- 启用：`LMS_REME_ENABLED=true`，并配置 `LMS_REME_ENDPOINT_TEMPLATE=http://reme-gateway.internal/users/{userId}`。
+- 存量数据库需先执行 `docker/mysql/init/92-v04-memory-outbox.sql`；Docker 全新初始化会由 `11-lms-ai.sql` 自动建表。
+- 当前 ReMe `/search` 不携带 workspace 参数，因此 endpoint 后的可信代理/服务必须把每个用户路由到独立 workspace；配置不含 `{userId}` 时启动失败。
+- ReMe 召回故障时聊天继续使用 MySQL 画像；写入、更正、删除失败会明确返回失败，不会虚假确认成功。
+- Wiki 路径只由 LMS 生成（`digest/wiki/{uuid}.md`），客户端无法传物理路径。
 - 课程知识库 RAG（`kb.ragChatCourse`，lms-kb 五步流水线）保留为子 agent 出题/答疑依据，不属于记忆层
 
 ## 配置要点

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/LOGINSSS/LMS/main/docs/api-schemas/user.schema.json",
+  "title": "用户契约（lms-user）",
+  "description": "用户档案接口的请求与响应结构。对应 lms-user 的 UserDetailVO / UserProfileFormDTO。首页人物画像使用 UserDetailVO。",
+  "$defs": {
+    "UserDetailVO": {
+      "type": "object",
+      "description": "用户详情：公共字段 + 按 userType 装配教师（college/title/bio）或学生（studentNo/major/grade/className）扩展字段",
+      "required": ["id", "userType"],
+      "properties": {
+        "id": { "type": "integer", "description": "用户档案 id" },
+        "accountId": { "type": ["integer", "null"], "description": "账号 id（关联 lms_auth.account.id）" },
+        "userType": { "type": "integer", "enum": [1, 2], "description": "1 学生 / 2 教师" },
+        "nickname": { "type": ["string", "null"] },
+        "avatar": { "type": ["string", "null"], "description": "头像 URL" },
+        "phone": { "type": ["string", "null"] },
+        "email": { "type": ["string", "null"] },
+        "status": { "type": ["integer", "null"], "description": "1 正常 / 0 禁用" },
+        "createTime": { "type": ["string", "null"], "format": "date-time" },
+        "college": { "type": ["string", "null"], "description": "院系（教师）" },
+        "title": { "type": ["string", "null"], "description": "职称（教师）" },
+        "bio": { "type": ["string", "null"], "description": "个人简介（教师）" },
+        "studentNo": { "type": ["string", "null"], "description": "学号（学生）" },
+        "major": { "type": ["string", "null"], "description": "专业（学生）" },
+        "grade": { "type": ["string", "null"], "description": "年级（学生）" },
+        "className": { "type": ["string", "null"], "description": "班级（学生）" }
+      },
+      "additionalProperties": false
+    },
+    "UserProfileFormDTO": {
+      "type": "object",
+      "description": "档案创建（内部 Feign）/ 修改（PUT /users/me）共用；修改场景未传字段不更新",
+      "properties": {
+        "accountId": { "type": ["integer", "null"], "description": "创建场景必填（幂等键）" },
+        "userType": { "type": ["integer", "null"], "enum": [1, 2], "description": "创建场景必填" },
+        "nickname": { "type": ["string", "null"] },
+        "avatar": { "type": ["string", "null"] },
+        "phone": { "type": ["string", "null"] },
+        "email": { "type": ["string", "null"] },
+        "college": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] },
+        "bio": { "type": ["string", "null"] },
+        "studentNo": { "type": ["string", "null"] },
+        "major": { "type": ["string", "null"] },
+        "grade": { "type": ["string", "null"] },
+        "className": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

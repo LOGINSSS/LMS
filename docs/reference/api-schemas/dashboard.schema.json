@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/LOGINSSS/LMS/main/docs/api-schemas/dashboard.schema.json",
+  "title": "数据中心契约（lms-statistics）",
+  "description": "数据看板接口的响应结构。对应 lms-statistics 的 DashboardVO / TodayStatsVO。",
+  "$defs": {
+    "DashboardVO": {
+      "type": "object",
+      "description": "数据看板总览（跨服务聚合累计数据）",
+      "properties": {
+        "userTotal": { "type": ["integer", "null"], "description": "用户总数" },
+        "courseTotal": { "type": ["integer", "null"], "description": "课程总数（已发布）" },
+        "enrollTotal": { "type": ["integer", "null"], "description": "选课人次" },
+        "learnTotal": { "type": ["integer", "null"], "description": "学习人次累计" },
+        "pointsBoard": {
+          "type": ["array", "null"],
+          "description": "积分榜 Top10",
+          "items": { "$ref": "learning.schema.json#/$defs/PointsBoardVO" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TodayStatsVO": {
+      "type": "object",
+      "description": "今日数据（看板今日区块）",
+      "properties": {
+        "todayUser": { "type": ["integer", "null"], "description": "今日新增用户" },
+        "todayCourse": { "type": ["integer", "null"], "description": "今日新增课程" },
+        "todaySign": { "type": ["integer", "null"], "description": "今日签到人数" },
+        "todayLearn": { "type": ["integer", "null"], "description": "今日学习人次" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

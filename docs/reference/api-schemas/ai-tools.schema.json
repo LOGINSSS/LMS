@@ -1,0 +1,208 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/LOGINSSS/LMS/main/docs/api-schemas/ai-tools.schema.json",
+  "title": "AI 工具面契约（lms-ai ToolFactory → 各业务模块 Feign）",
+  "description": "AI 相关数据提供的 JSON Schema：喂给 Agent/管道的工具入参与出参（对应 lms-ai tools/*.java 的 @Tool 签名与 client/*.java 的 Feign 契约）。AI 侧所有工具调用数据必须符合本契约（additionalProperties:false 严格校验）。",
+  "$defs": {
+
+    "ToolResult": {
+      "type": "object",
+      "description": "工具统一返回包装（ToolSupport.json 输出）。data 为各工具具体负载",
+      "required": ["code", "msg"],
+      "properties": {
+        "code": { "type": "integer", "description": "1 成功 / 其他错误码" },
+        "msg": { "type": "string" },
+        "data": { "description": "工具负载，见各工具定义" }
+      },
+      "additionalProperties": false
+    },
+
+    "RagChatRequest": {
+      "type": "object",
+      "description": "RAG 问答入参（lms-ai client/RagChatRequest，转发 lms-kb /rag/chat）",
+      "required": ["question"],
+      "properties": {
+        "courseId": { "type": "integer", "description": "课程 id（ownerType=1 课程库时必填）" },
+        "question": { "type": "string", "minLength": 1, "description": "用户问题" },
+        "ownerType": { "type": "integer", "enum": [1, 2], "description": "归属类型：1 课程 / 2 用户，默认 1" },
+        "ownerId": { "type": "integer", "description": "归属 id（ownerType=2 时为用户 id）" }
+      },
+      "additionalProperties": false
+    },
+
+    "RagChatResponse": {
+      "type": "object",
+      "description": "RAG 问答响应（RagResponse：answer + sources 溯源）",
+      "required": ["answer"],
+      "properties": {
+        "answer": { "type": "string", "description": "生成答案" },
+        "sources": {
+          "type": "array",
+          "description": "答案来源（溯源 / RAGAS 评估）",
+          "items": {
+            "type": "object",
+            "required": ["source", "docType", "text"],
+            "properties": {
+              "source": { "type": "string", "description": "来源文件名" },
+              "docType": { "type": "string", "description": "文档类型（md/pdf/...）" },
+              "text": { "type": "string", "description": "命中片段" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "QuestionForm": {
+      "type": "object",
+      "description": "题目表单（lms-exam QuestionFormDTO；AI 出题/图片供题的产物目标）",
+      "required": ["name", "type", "difficulty"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 255, "description": "题干" },
+        "type": { "type": "integer", "enum": [1, 2, 3, 4], "description": "题型：1单选 2多选 3判断 4主观（0.3 新增）" },
+        "category": { "type": "string", "maxLength": 50, "description": "题目分类/知识点" },
+        "difficulty": { "type": "integer", "enum": [1, 2, 3], "description": "难度：1易 2中 3难" },
+        "analysis": { "type": "string", "maxLength": 500, "description": "解析" },
+        "answer": {
+          "description": "答案：客观题 JSON 字符串（{\"option\":\"A\"}/{\"options\":[\"A\",\"B\"]}/{\"judge\":true}），主观题为参考要点 JSON 字符串",
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "附件（图片等，URL 形式，0.3 新增；本体走 lms-media）",
+          "items": { "$ref": "#/$defs/Attachment" }
+        },
+        "sourceType": { "type": "integer", "enum": [1, 2, 3], "description": "来源：1 手动 / 2 图片供题 / 3 AI 出题" }
+      },
+      "additionalProperties": false
+    },
+
+    "Attachment": {
+      "type": "object",
+      "description": "题目附件（图片等，URL 引用，本体在 lms-media）",
+      "required": ["url", "name", "type"],
+      "properties": {
+        "url": { "type": "string", "format": "uri", "description": "附件访问地址（lms-media 返回）" },
+        "name": { "type": "string", "description": "附件名（如 图1.png）" },
+        "type": { "type": "string", "enum": ["image", "file"], "description": "附件类型" }
+      },
+      "additionalProperties": false
+    },
+
+    "PaperForm": {
+      "type": "object",
+      "description": "试卷表单（0.3 手动/自动组卷入参）",
+      "required": ["courseId", "title"],
+      "properties": {
+        "courseId": { "type": "integer", "description": "课程 id" },
+        "title": { "type": "string", "maxLength": 100, "description": "试卷标题" },
+        "desc": { "type": "string", "maxLength": 500, "description": "试卷说明" },
+        "sourceType": { "type": "integer", "enum": [1, 2], "description": "组卷来源：1 手动 / 2 AI 组卷" }
+      },
+      "additionalProperties": false
+    },
+
+    "PaperQuestionItem": {
+      "type": "object",
+      "description": "试卷题目项（组卷入参/AI 出卷产物项）",
+      "required": ["questionId", "score"],
+      "properties": {
+        "questionId": { "type": "integer", "description": "题目 id（必须来自题库真实检索，禁止编造）" },
+        "score": { "type": "integer", "minimum": 0, "description": "本题分值" }
+      },
+      "additionalProperties": false
+    },
+
+    "AutoPaperRequest": {
+      "type": "object",
+      "description": "自动组卷入参（规则抽题 / AI 出卷管道入参）",
+      "required": ["courseId", "questionCount"],
+      "properties": {
+        "courseId": { "type": "integer", "description": "课程 id" },
+        "title": { "type": "string", "description": "试卷标题（可选，缺省自动生成）" },
+        "questionCount": { "type": "integer", "minimum": 1, "maximum": 100, "description": "题量" },
+        "difficulty": { "type": "integer", "enum": [1, 2, 3], "description": "目标难度（可选，均衡时忽略）" },
+        "knowledgePoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "目标知识点（可选；不传则从题库覆盖度自动均衡）"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ExamForm": {
+      "type": "object",
+      "description": "考试编排入参（0.3 教师建考试）",
+      "required": ["courseId", "paperId", "title", "startTime", "endTime"],
+      "properties": {
+        "courseId": { "type": "integer", "description": "课程 id" },
+        "paperId": { "type": "integer", "description": "试卷 id" },
+        "title": { "type": "string", "maxLength": 100, "description": "考试标题" },
+        "startTime": { "type": "string", "format": "date-time", "description": "开考时间" },
+        "endTime": { "type": "string", "format": "date-time", "description": "截止时间" },
+        "durationMin": { "type": "integer", "minimum": 5, "description": "考试时长（分钟），默认 60" }
+      },
+      "additionalProperties": false
+    },
+
+    "HomeworkForm": {
+      "type": "object",
+      "description": "作业布置入参（0.3 learning；不依赖题库，AI 按知识点生成概念题）",
+      "required": ["courseId", "title", "knowledgePoints", "questionCount"],
+      "properties": {
+        "courseId": { "type": "integer", "description": "课程 id" },
+        "title": { "type": "string", "maxLength": 100, "description": "作业标题" },
+        "description": { "type": "string", "maxLength": 500, "description": "作业说明" },
+        "knowledgePoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "知识点（逗号分隔存储，AI 出题依据）"
+        },
+        "questionCount": { "type": "integer", "minimum": 1, "maximum": 20, "description": "题目数量" },
+        "deadline": { "type": "string", "format": "date-time", "description": "截止时间（可选）" }
+      },
+      "additionalProperties": false
+    },
+
+    "AnswerSubmit": {
+      "type": "object",
+      "description": "答题结果项（考试/作业/评测共用；判卷管道入参）",
+      "required": ["questionId", "userAnswer"],
+      "properties": {
+        "questionId": { "type": "integer", "description": "题目 id（作业为 homework_question.id，0 表示临时题）" },
+        "userAnswer": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "作答：客观题 JSON 字符串（{\"option\":\"A\"}），主观题为文本"
+        },
+        "knowledgePoint": { "type": "string", "description": "知识点（可选，判分回写用）" }
+      },
+      "additionalProperties": false
+    },
+
+    "ExamMineItem": {
+      "type": "object",
+      "description": "我的考试列表项（0.3 考试页：倒计时 + 进入按钮数据源）",
+      "required": ["examId", "courseId", "title", "status"],
+      "properties": {
+        "examId": { "type": "integer" },
+        "courseId": { "type": "integer" },
+        "courseName": { "type": "string", "description": "课程名（列表展示）" },
+        "title": { "type": "string", "description": "考试标题" },
+        "status": { "type": "integer", "enum": [1, 2, 3], "description": "1 未开始 / 2 进行中 / 3 已结束" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "countdownSeconds": {
+          "type": ["integer", "null"],
+          "description": "距开考/结束倒计时（秒，服务端计算，前端据此渲染倒计时）"
+        },
+        "durationMin": { "type": "integer", "description": "考试时长（分钟）" },
+        "score": { "type": ["integer", "null"], "description": "已结束时的判卷得分" },
+        "canEnter": { "type": "boolean", "description": "是否可进入考试（开考后且未交卷）" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
