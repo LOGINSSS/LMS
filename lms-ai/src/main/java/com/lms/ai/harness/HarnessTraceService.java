@@ -35,6 +35,10 @@ public class HarnessTraceService {
     public static final String EVENT_HITL_REJECT = "hitl_reject";
     public static final String EVENT_SESSION_LIMIT = "session_limit";
     public static final String EVENT_SESSION_TERMINATED = "session_terminated";
+    public static final String EVENT_MEMORY_QUEUED = "memory_queued";
+    public static final String EVENT_MEMORY_DELIVERED = "memory_delivered";
+    public static final String EVENT_MEMORY_RETRY = "memory_retry";
+    public static final String EVENT_MEMORY_DEAD = "memory_dead";
 
     private final StringRedisTemplate redisTemplate;
     private final HarnessProperties properties;

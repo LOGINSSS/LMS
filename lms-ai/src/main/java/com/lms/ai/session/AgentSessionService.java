@@ -10,9 +10,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,18 +73,27 @@ public class AgentSessionService {
         return s;
     }
 
-    /** 结束会话：L1 摘要压缩 → 追加进 L2 行为流水（spec §4.5 第 5 步）+ 清理 Harness 用量 */
+    /**
+     * 标记会话关闭，并在数据库事务提交后清理短期状态。
+     * 这样 Outbox 与关闭状态提交失败时，Redis 原始消息仍可供重试。
+     */
     public void closeSession(Long userId, Long sessionId) {
         AgentSession s = getOwned(userId, sessionId);
         if (s.getStatus() == AgentSession.STATUS_CLOSED) {
             return;
         }
-        // L1 消息 → L2 行为流水（会话关闭事件；画像摘要压缩由 ProfileService 每 N 条事件/每日触发）
         s.setStatus(AgentSession.STATUS_CLOSED);
         sessionMapper.updateById(s);
-        redisTemplate.delete(msgKey(sessionId));
-        clearSummary(sessionId);
-        sessionGuard.clear(sessionId);
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    cleanupShortTermState(sessionId);
+                }
+            });
+        } else {
+            cleanupShortTermState(sessionId);
+        }
     }
 
     /** 追加一条消息（user/assistant）并更新计数 */
@@ -123,7 +136,14 @@ public class AgentSessionService {
         for (String j : jsons) {
             try {
                 cn.hutool.json.JSONObject obj = JsonUtils.parseObj(j);
-                out.add(Map.of("role", obj.getStr("role"), "text", obj.getStr("text")));
+                Map<String, String> message = new HashMap<>();
+                message.put("role", obj.getStr("role"));
+                message.put("text", obj.getStr("text"));
+                Long time = obj.getLong("time");
+                if (time != null) {
+                    message.put("created_at", Instant.ofEpochMilli(time).toString());
+                }
+                out.add(message);
             } catch (Exception e) {
                 log.warn("会话消息解析失败 sessionId={}", sessionId);
             }
@@ -169,6 +189,25 @@ public class AgentSessionService {
         Long size = redisTemplate.opsForList().size(key);
         if (size != null && size > 0) {
             redisTemplate.opsForList().trim(key, size / 2, -1);
+        }
+    }
+
+    private void cleanupShortTermState(Long sessionId) {
+        try {
+            redisTemplate.delete(msgKey(sessionId));
+        } catch (Exception e) {
+            log.warn("会话消息清理失败 sessionId={} errorType={}", sessionId, e.getClass().getSimpleName());
+        }
+        try {
+            clearSummary(sessionId);
+        } catch (Exception e) {
+            log.warn("会话摘要清理失败 sessionId={} errorType={}", sessionId, e.getClass().getSimpleName());
+        }
+        try {
+            sessionGuard.clear(sessionId);
+        } catch (Exception e) {
+            log.warn("会话 Harness 状态清理失败 sessionId={} errorType={}",
+                    sessionId, e.getClass().getSimpleName());
         }
     }
 

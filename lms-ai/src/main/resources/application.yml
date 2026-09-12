@@ -64,14 +64,18 @@ lms:
       summary-model: qwen-turbo
       # L1 会话消息 Redis TTL（天，spec §4.1）
       session-ttl-days: 7
-      # AgentScope ReMe 长期记忆（spec §4.3 L2：对话轨迹提取-整合-检索注入）
-      # 需先部署 ReMe 服务端（官方仓库 agentscope-ai/ReMe，Docker 或百炼云服务），
-      # 填好 base-url 并 enabled=true 后生效；未配置自动回退 MySQL 画像记忆
+      # ReMe 文件型个人 Wiki（当前官方 HTTP Job API）；关闭时召回回退 MySQL 画像。
+      # endpoint 必须由可信代理按 userId 路由到独立 ReMe workspace，禁止共享 workspace 搜索。
       reme:
         enabled: ${LMS_REME_ENABLED:false}
-        base-url: ${LMS_REME_BASE_URL:}
+        endpoint-template: ${LMS_REME_ENDPOINT_TEMPLATE:}
+        bearer-token: ${LMS_REME_BEARER_TOKEN:}
         timeout-ms: 3000
-        workspace-prefix: user_
+        outbox-batch-size: 20
+        outbox-poll-ms: 10000
+        max-attempts: 5
+        retry-base-seconds: 30
+        processing-lease-seconds: 120
       # 互调深度限制（spec §5.3：个人 agent → 子 agent → 工具，≤3）
       max-invoke-depth: 3
       # 高副作用工具（建题/上架/推送）前置人工确认（阶段 5 加固项，当前先提示不拦截）

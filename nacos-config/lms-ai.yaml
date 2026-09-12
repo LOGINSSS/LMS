@@ -48,10 +48,15 @@ lms:
       summary-model: qwen-turbo                              # 画像摘要压缩
       session-ttl-days: 7                                    # L1 会话 Redis TTL（天）
       reme:
-        enabled: false                                       # ReMe 长期记忆开关（需先部署 ReMe 服务端）
-        base-url: ""                                         # ReMe 服务端地址（如 http://localhost:8000）
+        enabled: false                                       # ReMe 文件型个人 Wiki 开关
+        endpoint-template: ""                                # 必须含 {userId}，可信代理按用户路由独立 workspace
+        bearer-token: ${LMS_REME_BEARER_TOKEN:}              # 可选，交给可信代理鉴权；禁止明文提交 token
         timeout-ms: 3000
-        workspace-prefix: user_
+        outbox-batch-size: 20                                # 每轮可靠投递任务上限
+        outbox-poll-ms: 10000                                # Outbox 轮询间隔（毫秒）
+        max-attempts: 5                                      # 达到后进入死信
+        retry-base-seconds: 30                               # 指数退避基数
+        processing-lease-seconds: 120                        # 崩溃恢复租约
       max-invoke-depth: 3                                    # 互调深度限制
       require-confirm: false                                 # 高副作用人工确认（阶段 5 加固）
     im:

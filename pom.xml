@@ -117,12 +117,6 @@
                 <artifactId>agentscope-extensions-model-openai</artifactId>
                 <version>${agentscope.version}</version>
             </dependency>
-            <!-- AgentScope ReMe 记忆扩展（阿里通义实验室记忆方案，spec §4 三层记忆对接） -->
-            <dependency>
-                <groupId>io.agentscope</groupId>
-                <artifactId>agentscope-extensions-reme</artifactId>
-                <version>1.0.12</version>
-            </dependency>
             <!-- Feign multipart（media/kb 上传工具，spec §3.3） -->
             <dependency>
                 <groupId>io.github.openfeign.form</groupId>
