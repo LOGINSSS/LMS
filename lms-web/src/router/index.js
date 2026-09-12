@@ -15,6 +15,7 @@ const routes = [
   { path: '/home', name: 'home', component: () => import('../views/HomeView.vue') },
   { path: '/courses', name: 'courses', component: () => import('../views/CourseListView.vue') },
   { path: '/courses/:id', name: 'course-detail', component: () => import('../views/CourseDetailView.vue'), props: true },
+  { path: '/courses/:id/qa', name: 'course-qa', component: () => import('../views/CourseQaView.vue'), props: true },
   {
     // 课程管理（教师）：概览 / 题库（本课程）/ 出卷与考试作业
     path: '/courses/:id/manage',

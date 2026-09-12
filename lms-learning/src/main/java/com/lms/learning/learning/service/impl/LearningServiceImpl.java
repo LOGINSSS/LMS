@@ -43,6 +43,7 @@ import com.lms.learning.learning.mapper.QaQuestionMapper;
 import com.lms.learning.learning.mapper.SignInMapper;
 import com.lms.learning.learning.service.ILearningService;
 import com.lms.learning.learning.service.LearningCacheService;
+import com.lms.learning.learning.service.NotificationService;
 import com.lms.learning.learning.service.PointsZSetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -78,6 +79,7 @@ public class LearningServiceImpl implements ILearningService {
     private final LearningCacheService cacheService;
     private final PointsZSetService pointsZSetService;
     private final StringRedisTemplate redisTemplate;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -208,6 +210,8 @@ public class LearningServiceImpl implements ILearningService {
         QaQuestion question = BeanUtils.copyBean(dto, QaQuestion.class);
         question.setUserId(userId);
         questionMapper.insert(question);
+        //3. 信箱通知：向课程归属教师发「待回答」（best-effort，失败不影响提问）
+        notificationService.notifyTeacherNewQuestion(question);
         grantPoints(userId, PointsType.QUESTION);
         cacheService.evictLearnStats(userId);
         return question.getId();
@@ -254,6 +258,8 @@ public class LearningServiceImpl implements ILearningService {
         answer.setContent(dto.getContent());
         answer.setAccepted(0);
         answerMapper.insert(answer);
+        //4. 信箱通知：教师回答 → 通知提问学生（best-effort，失败不影响回答）
+        notificationService.notifyStudentAnswered(question, dto.getContent());
         grantPoints(userId, PointsType.ANSWER);
         cacheService.evictLearnStats(userId);
         return answer.getId();

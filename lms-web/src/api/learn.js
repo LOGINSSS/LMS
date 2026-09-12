@@ -41,3 +41,16 @@ export const myLearnStats = () => request.get('/learn/stats/my')
 
 // 作业/考试结果统计（来源 3 作业 / 4 考试）：题量/答对/得分 + 最近记录
 export const homeworkExamStats = () => request.get('/learn/stats/homework-exam')
+
+// ---------- 站内消息信箱（QA 答疑通知）----------
+// 我的消息分页（含已读/未读）
+export const listMyNotifications = (params) => request.get('/qa/notifications/page', { params })
+
+// 我的未读数（顶栏红点）
+export const unreadNotifyCount = () => request.get('/qa/notifications/unread-count')
+
+// 标记已读（ids 数组）
+export const markNotifyRead = (ids) => request.put('/qa/notifications/read', null, { params: { ids: ids.join(',') } })
+
+// 全部标记已读
+export const markAllNotifyRead = () => request.put('/qa/notifications/read-all', null)

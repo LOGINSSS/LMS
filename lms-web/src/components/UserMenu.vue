@@ -1,91 +1,109 @@
 <script setup>
 // 顶栏用户菜单：点头像/昵称弹出下拉（完善个人资料 / 消息通知 / 退出登录）
 // 个人资料完善内嵌弹窗：按角色展示扩展字段（学生：学号/专业/年级/班级；教师：院系/职称/简介）
-// 消息通知：教师 = 自己课程里「待回答的学生问题」实时聚合提醒（点击箭头跳课程详情待回答区）
+// 消息通知 = 站内信箱（后端落库，双端通用）：
+//   - 教师：学生提问 → 「有新问题待回答」，跳课程问答中心处理；
+//   - 学生：教师回答 → 「提问已被老师回答」，跳课程问答中心查看。
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUserMe, updateUserMe } from '../api/user'
 import { logout } from '../api/auth'
 import { getUsername, setUsername, clearAuth, isTeacher, isStudent } from '../utils/auth'
-import { queryMyCourses } from '../api/course'
-import { listQuestions } from '../api/learn'
+import {
+  listMyNotifications,
+  unreadNotifyCount,
+  markNotifyRead,
+  markAllNotifyRead
+} from '../api/learn'
+import { notificationPresentation, questionCenterTarget } from '../utils/courseQa'
 
 const router = useRouter()
 
 const open = ref(false)
 const wrapEl = ref(null)
-const teacherRole = isTeacher()
-const roleName = teacherRole ? '教师' : isStudent() ? '学生' : ''
+const roleName = isTeacher() ? '教师' : isStudent() ? '学生' : ''
 
 // 名称展示：优先登录态缓存；资料完善后同步刷新
 const name = ref(getUsername() || '')
 const initial = computed(() => (name.value || 'L').charAt(0))
 
-// 下拉面板：menu 主菜单 / notice 消息通知
+// 下拉面板：menu 主菜单 / notice 信箱
 const panel = ref('menu')
 
-// ---------- 消息通知（教师：待回答的学生问题提醒） ----------
-const notices = ref([])
-const noticesLoading = ref(false)
-const noticeTip = ref('')
+// ---------- 信箱（消息通知，后端落库，未读数做红点） ----------
+const inbox = ref([])
+const unread = ref(0)
+const inboxLoading = ref(false)
+const inboxTip = ref('')
 
-// 待回答问题总数（用于主菜单上的红点/数字）
-const pendingTotal = computed(() => notices.value.reduce((s, n) => s + (n.count || 0), 0))
-
-const loadNotices = async () => {
-  if (!teacherRole) {
-    notices.value = []
-    return
-  }
-  noticesLoading.value = true
-  noticeTip.value = ''
+const refreshUnread = async () => {
   try {
-    const data = await queryMyCourses({ pageNo: 1, pageSize: 500 })
-    const courses = (data?.list || []).slice(0, 20)
-    const rows = await Promise.all(courses.map(async (c) => {
-      try {
-        const q = await listQuestions({ courseId: c.id, pageNo: 1, pageSize: 100 })
-        const qs = Array.isArray(q?.list) ? q.list : []
-        // 待回答 = 还没有任何回答的问题
-        const pend = qs.filter((x) => !(x.answers && x.answers.length))
-        if (!pend.length) return null
-        return {
-          courseId: c.id,
-          courseName: c.name,
-          count: pend.length,
-          latestAt: pend[0]?.createTime || ''
-        }
-      } catch (e) {
-        return null
-      }
-    }))
-    notices.value = rows
-      .filter(Boolean)
-      .sort((a, b) => String(b.latestAt).localeCompare(String(a.latestAt)))
+    unread.value = Number(await unreadNotifyCount()) || 0
   } catch (e) {
-    noticeTip.value = '通知加载失败'
-    notices.value = []
+    // 未读数拉取失败不阻塞
+  }
+}
+
+const loadInbox = async () => {
+  inboxLoading.value = true
+  inboxTip.value = ''
+  try {
+    const data = await listMyNotifications({ pageNo: 1, pageSize: 50 })
+    inbox.value = Array.isArray(data?.list) ? data.list : []
+    if (!inbox.value.length) inboxTip.value = '暂无消息'
+  } catch (e) {
+    inboxTip.value = '消息加载失败'
+    inbox.value = []
   } finally {
-    noticesLoading.value = false
+    inboxLoading.value = false
+    refreshUnread()
   }
 }
 
 const openNotices = () => {
   panel.value = 'notice'
-  if (teacherRole) loadNotices()
-}
-
-const goNotice = (n) => {
-  open.value = false
-  panel.value = 'menu'
-  router.push({ path: `/courses/${n.courseId}`, hash: '#qa-pending' })
+  loadInbox()
 }
 
 const backToMenu = () => {
   panel.value = 'menu'
 }
 
-// ---------- 资料完善弹窗 ----------
+const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(5, 16) : '')
+const noticeMeta = (notification) => notificationPresentation(notification)
+
+// 全部已读
+const markAll = async () => {
+  try {
+    await markAllNotifyRead()
+    inbox.value.forEach((n) => { n.isRead = 1 })
+    unread.value = 0
+  } catch (e) {
+    // 忽略
+  }
+}
+
+// 单条标记已读（best-effort）
+const markOne = async (n) => {
+  if (n.isRead === 1) return
+  n.isRead = 1
+  unread.value = Math.max(0, unread.value - 1)
+  try {
+    await markNotifyRead([n.id])
+  } catch (e) {
+    refreshUnread()
+  }
+}
+
+// 点击消息：标记已读并跳到课程问答中心的具体问题
+const jumpNotify = async (n) => {
+  await markOne(n)
+  open.value = false
+  panel.value = 'menu'
+  router.push(questionCenterTarget(n.courseId, n.questionId))
+}
+
+// 资料完善弹窗 ----------
 const showEdit = ref(false)
 const loadingEdit = ref(false)
 const saving = ref(false)
@@ -181,7 +199,8 @@ const onKey = (e) => {
 onMounted(() => {
   document.addEventListener('mousedown', onDocClick)
   document.addEventListener('keydown', onKey)
-  if (teacherRole) loadNotices()
+  // 未读数（红点）挂载即拉取，双端通用
+  refreshUnread()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocClick)
@@ -211,7 +230,7 @@ onBeforeUnmount(() => {
           </button>
           <button v-btn-fx class="drop-item" @click="openNotices">
             <span>消息通知</span>
-            <span class="badge" v-if="pendingTotal > 0">{{ pendingTotal }}</span>
+            <span class="badge" v-if="unread > 0">{{ unread > 99 ? '99+' : unread }}</span>
           </button>
           <div class="drop-sep"></div>
           <button v-btn-fx class="drop-item danger" @click="handleLogout">
@@ -219,23 +238,32 @@ onBeforeUnmount(() => {
           </button>
         </template>
 
-        <!-- 消息通知面板 -->
+        <!-- 消息通知（信箱）面板 -->
         <template v-else>
           <div class="notice-head">
             <button v-btn-fx class="back" @click="backToMenu">‹</button>
             <span class="nt-title">消息通知</span>
-            <button v-btn-fx v-if="teacherRole" class="refresh" title="刷新" @click="loadNotices">↻</button>
+            <button v-btn-fx class="refresh" title="全部已读" @click="markAll">全部已读</button>
+            <button v-btn-fx class="refresh" title="刷新" @click="loadInbox">↻</button>
           </div>
-          <p v-if="noticeTip" class="nt-tip">{{ noticeTip }}</p>
-          <p v-if="noticesLoading && !notices.length" class="nt-tip">加载中…</p>
-          <div v-else-if="!notices.length" class="nt-empty">暂无消息通知</div>
+          <p v-if="inboxLoading && !inbox.length" class="nt-tip">加载中…</p>
+          <p v-else-if="inboxTip && !inbox.length" class="nt-empty">{{ inboxTip }}</p>
           <div v-else class="notice-list">
-            <button v-for="n in notices" :key="n.courseId" v-btn-fx class="notice-row" @click="goNotice(n)">
-              <span class="nt-text">
-                《{{ n.courseName }}》有 {{ n.count }} 个新问题需要回答，快去看看吧~
-              </span>
-              <span class="arrow">›</span>
-            </button>
+            <div v-for="n in inbox" :key="n.id" class="notice-row" :class="{ unread: n.isRead !== 1 }">
+              <button v-btn-fx class="row-main" @click="jumpNotify(n)">
+                <span class="dot" v-if="n.isRead !== 1"></span>
+                <span class="chip" :class="`chip-${noticeMeta(n).tone}`">
+                  {{ noticeMeta(n).label }}
+                </span>
+                <span class="nt-body">
+                  <span class="nt-text">{{ n.title || '（无标题）' }}</span>
+                  <span v-if="n.content" class="nt-sub">{{ n.content }}</span>
+                  <span class="nt-time">{{ fmtTime(n.createTime) }}</span>
+                </span>
+                <span class="notice-action">{{ noticeMeta(n).action }}</span>
+                <span class="arrow">›</span>
+              </button>
+            </div>
           </div>
         </template>
       </div>
@@ -375,7 +403,7 @@ onBeforeUnmount(() => {
 }
 
 .dropdown.wide {
-  width: 300px;
+  width: min(390px, calc(100vw - 24px));
 }
 
 .drop-head {
@@ -442,8 +470,8 @@ onBeforeUnmount(() => {
 .notice-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px 8px;
+  gap: 10px;
+  padding: 10px 12px 12px;
   border-bottom: 1px solid #f0f2f5;
   margin-bottom: 4px;
 }
@@ -451,15 +479,17 @@ onBeforeUnmount(() => {
 .back, .refresh {
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 13px;
   color: #666;
   cursor: pointer;
   padding: 0 4px;
+  white-space: nowrap;
 }
 
+.back { font-size: 15px; }
 .back:hover, .refresh:hover { color: #409eff; }
 
-.nt-title { flex: 1; font-size: 14px; font-weight: 600; color: #333; }
+.nt-title { flex: 1; font-size: 16px; font-weight: 600; color: #2d3e50; }
 
 .nt-tip, .nt-empty {
   padding: 18px 10px;
@@ -469,36 +499,96 @@ onBeforeUnmount(() => {
 }
 
 .notice-list {
-  max-height: 280px;
+  max-height: 420px;
   overflow: auto;
 }
 
 .notice-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
+  padding: 5px;
+  border-radius: 8px;
+}
+
+.notice-row:hover { background: #f5f7fa; }
+
+.notice-row.unread { background: #f0f7ff; }
+.notice-row.unread:hover { background: #e6f0ff; }
+
+.row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 6px 10px 10px;
   border: none;
-  border-radius: 6px;
   background: transparent;
   cursor: pointer;
   text-align: left;
 }
 
-.notice-row:hover { background: #f5f7fa; }
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f56c6c;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
 
-.notice-row:hover .arrow { color: #409eff; }
+.chip {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #fff;
+  margin-top: 2px;
+}
+
+.chip-pending { background: #e05b5b; }
+.chip-answered { background: #2f9e6e; }
+.chip-resolved { background: #64748b; }
+
+.nt-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 
 .nt-text {
-  flex: 1;
-  font-size: 13px;
+  font-size: 14px;
   color: #333;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nt-sub {
+  font-size: 13px;
+  color: #888;
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.nt-time { font-size: 12px; color: #9ba8b5; }
+
+.row-main .arrow { margin-top: 6px; }
+.notice-row:hover .arrow { color: #409eff; }
+
+.notice-action {
+  align-self: center;
+  flex-shrink: 0;
+  color: #337fbd;
+  font-size: 12px;
 }
 
 /* 下拉过渡：只动 opacity/transform */

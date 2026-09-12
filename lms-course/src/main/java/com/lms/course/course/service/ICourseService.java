@@ -9,6 +9,7 @@ import com.lms.course.course.domain.vo.CourseTopVO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 课程业务服务
@@ -143,4 +144,13 @@ public interface ICourseService {
      * @return 热门课程列表（含课程名与选课人数）
      */
     List<CourseTopVO> topCourses(int size);
+
+    /**
+     * 课程归属信息（供学习服务发答疑通知等内部场景使用，登录即可访问）
+     *
+     * @param id 课程 id
+     * @return {teacherId, name}
+     * @throws CommonException 课程不存在（COURSE_NOT_FOUND）
+     */
+    Map<String, Object> getCourseOwner(Long id);
 }

@@ -17,7 +17,8 @@
 | LoginView / RegisterView | 登录 / 注册（用户类型：学生 / 教师） |
 | HomeView | 首页：个人画像卡 → **日历/课表**（CalendarBoard）→ 学习概览（学生）/ 功能入口；资料完善引导至右上角昵称下拉 |
 | CourseListView | **课程广场**：浏览 + 关键词（ES）搜索 + 兴趣推荐（点击积累兴趣标签），教师可建课、学生可选课 |
-| CourseDetailView | 课程详情（点赞 / 大纲正文 / 课次 / 积分榜）。**学生**：学习笔记、互动问答；**教师**：大纲编辑、待回答的学生问题（消息通知跳转锚点 #qa-pending） |
+| CourseDetailView | 课程详情（点赞 / 大纲正文 / 课次 / 积分榜 / 课程问答入口）。**学生**：学习笔记；**教师**：大纲编辑 |
+| CourseQaView | 课程问答子页面 `/courses/:id/qa`：历史问题与回答、状态筛选；学生发布问题，教师在问题线程内回答；通知按 `questionId` 精确定位 |
 | MyCoursesView | 我的课程：学生看选过的课，教师看自己创建的课 |
 | LearnView | 学习中心：课次 / 进度 / 签到 / 积分明细与榜单 |
 | ExamScheduleView | **考试/作业（角色分流）**：学生 = 我的待做考试/作业列表；教师 = 发布台（新建考试/作业 + 我的排期管理，见 TeacherScheduleConsole） |
@@ -32,7 +33,8 @@
 |---|---|
 | CourseCard / Pagination | 课程卡片 / 通用分页 |
 | CalendarBoard | 日历面板（月/周，角色区分课程源：学生=已选课程、教师=自建课程），首页内嵌与 /calendar 复用 |
-| UserMenu | 右上角昵称下拉：完善个人资料（角色字段弹窗）、消息通知（教师聚合各课程待回答学生问题，可跳转）、退出登录 |
+| UserMenu | 右上角昵称下拉：完善个人资料（角色字段弹窗）、站内消息（未读状态、跳转到具体课程问题）、退出登录 |
+| qa/QuestionThread | 单个问题与历史回答线程，提供教师页面内回答编辑器 |
 | TeacherScheduleConsole | 教师「考试/作业」发布台：新建考试/新建作业（选课程 → 选已发布卷面 → 设时间）+ 排期管理 |
 | AiChatWidget | 右下角全局 AI 对话浮窗（student / teacher 双角色） |
 
@@ -54,5 +56,6 @@
 ```bash
 cd lms-web
 npm install
+npm test         # Node 内置测试（无需额外测试依赖）
 npm run dev      # http://localhost:5173
 ```

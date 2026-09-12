@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import { getCourseDetail, enrollCourse, quitCourse, changeCourseStatus, publishCourse, getCourseCatalog, getChapterContent, addCatalogNode, deleteCatalogNode, saveChapterContent, grabCourse, getGrabStatus } from '../api/course'
 import { toggleLike, likeStatus } from '../api/like'
-import { listLessons, recordLearning, listNotes, addNote, listQuestions, askQuestion, answerQuestion, signInCourse, coursePointsBoard, myCoursePoints, reportChapterRead } from '../api/learn'
+import { listLessons, recordLearning, listNotes, addNote, signInCourse, coursePointsBoard, myCoursePoints, reportChapterRead } from '../api/learn'
 import { isTeacher, isStudent } from '../utils/auth'
 import { queryQuestionsByBiz, queryMyPapers, queryMySchedules } from '../api/exam'
 
@@ -19,8 +19,6 @@ const likeState = ref({ liked: false, likeCount: 0 })
 const lessons = ref([])
 const notes = ref([])
 const noteContent = ref('')
-const questions = ref([])
-const qaForm = ref({ title: '', content: '' })
 
 // ---- 两栏大纲（0.2 课程内容域）----
 const catalog = ref([])          // 左栏章节树
@@ -39,7 +37,6 @@ const load = async () => {
       loadLessons(),
       // 学习笔记仅学生（教师无记笔记场景，详情页不展示）
       isStudent() ? loadNotes() : Promise.resolve(),
-      loadQuestions(),
       loadCatalog(),
       loadGrabStatus(),
       loadCoursePoints()
@@ -105,41 +102,6 @@ const onSubmitNote = async () => {
     await addNote({ courseId: route.params.id, content: noteContent.value })
     noteContent.value = ''
     loadNotes()
-  } catch (e) {
-    alert(e.message)
-  }
-}
-
-// 问答
-const loadQuestions = async () => {
-  // 教师端需要看全量以便筛“待回答”，取更多
-  const size = isTeacher() ? 100 : 20
-  const data = await listQuestions({ courseId: route.params.id, pageNo: 1, pageSize: size })
-  questions.value = data.list
-}
-
-// 待回答的问题 = 尚无任何回答（教师端展示）
-const pendingQuestions = computed(() =>
-  (questions.value || []).filter((q) => !(q.answers && q.answers.length))
-)
-
-const onSubmitQuestion = async () => {
-  if (!qaForm.value.title.trim()) return
-  try {
-    await askQuestion({ courseId: route.params.id, title: qaForm.value.title, content: qaForm.value.content })
-    qaForm.value = { title: '', content: '' }
-    loadQuestions()
-  } catch (e) {
-    alert(e.message)
-  }
-}
-
-const onAnswer = async (question) => {
-  const content = prompt('输入你的回答')
-  if (!content) return
-  try {
-    await answerQuestion(question.id, { content })
-    loadQuestions()
   } catch (e) {
     alert(e.message)
   }
@@ -576,7 +538,8 @@ onUnmounted(() => {
       </ul>
     </div>
 
-    <div class="detail-panel">
+    <!-- 课次（仅学生：点击学习，首次 +2 积分） -->
+    <div v-if="isStudent()" class="detail-panel">
       <h3 class="section-title">课次（点击学习，首次 +2 积分）</h3>
       <ul class="lesson-list">
         <li v-for="lesson in lessons" :key="lesson.id" class="lesson-item">
@@ -600,42 +563,15 @@ onUnmounted(() => {
       </ul>
     </div>
 
-    <!-- 教师：待回答的学生问题（替代互动问答） -->
-    <div v-if="isTeacher()" id="qa-pending" class="detail-panel">
-      <div class="outline-header">
-        <h3 class="section-title">待回答的学生问题（{{ pendingQuestions.length }}）</h3>
-        <button v-btn-fx class="btn" @click="loadQuestions">刷新</button>
+    <!-- 问答作为课程独立子页面，详情页只保留清晰入口 -->
+    <div class="detail-panel qa-entry">
+      <div>
+        <h3 class="section-title">课程问答</h3>
+        <p>{{ isTeacher() ? '集中查看学生疑问并在页面内回答，历史解答会持续保留。' : '提出学习疑问、查看教师回答和课程历史讨论。' }}</p>
       </div>
-      <div v-if="!pendingQuestions.length" class="empty-tip">
-        暂无待回答的问题，学生提问后这里会实时提醒。
-      </div>
-      <div v-for="q in pendingQuestions" :key="q.id" class="qa-item">
-        <p class="qa-title">{{ q.title }} <span class="qa-sub">by 学生 #{{ q.userId }} · {{ (q.createTime || '').slice(0, 16) }}</span></p>
-        <p v-if="q.content" class="qa-content">{{ q.content }}</p>
-        <button v-btn-fx class="btn btn-primary" @click="onAnswer(q)">回答问题</button>
-      </div>
-    </div>
-
-    <!-- 互动问答（仅学生） -->
-    <div v-if="isStudent()" class="detail-panel">
-      <h3 class="section-title">互动问答（提问 +3 积分）</h3>
-      <div class="qa-form">
-        <input v-model="qaForm.title" placeholder="问题标题" />
-        <input v-model="qaForm.content" placeholder="问题详情（可选）" />
-        <button v-btn-fx class="btn btn-primary" @click="onSubmitQuestion">提问</button>
-      </div>
-      <div v-for="q in questions" :key="q.id" class="qa-item">
-        <p class="qa-title">{{ q.title }} <span class="qa-sub">by 用户 #{{ q.userId }}</span></p>
-        <p v-if="q.content" class="qa-content">{{ q.content }}</p>
-        <ul class="answer-list">
-          <li v-for="a in q.answers" :key="a.id" class="answer-item">
-            <span>用户 #{{ a.userId }}：{{ a.content }}</span>
-            <span v-if="a.accepted === 1" class="accepted-tag">已采纳</span>
-          </li>
-        </ul>
-        <button v-btn-fx class="btn" @click="onAnswer(q)">回答（+5 积分）</button>
-      </div>
-      <div v-if="questions.length === 0" class="empty-tip">暂无提问</div>
+      <router-link v-btn-fx class="btn btn-primary" :to="`/courses/${course.id}/qa`">
+        {{ isTeacher() ? '进入问答中心' : '查看问答与提问' }}
+      </router-link>
     </div>
   </div>
 </template>
@@ -788,14 +724,12 @@ onUnmounted(() => {
 }
 
 .lesson-list,
-.note-list,
-.answer-list {
+.note-list {
   list-style: none;
 }
 
 .lesson-item,
-.note-item,
-.answer-item {
+.note-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -805,56 +739,25 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-.note-form,
-.qa-form {
+.note-form {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
 }
 
-.note-form input,
-.qa-form input {
+.note-form input {
   flex: 1;
   padding: 6px 10px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
 }
 
-.qa-item {
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}
+.qa-entry { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-left: 3px solid #409eff; }
+.qa-entry .section-title { margin-bottom: 6px; }
+.qa-entry p { color: #738395; line-height: 1.6; }
 
-.qa-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.qa-sub {
-  color: #999;
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.qa-content {
-  color: #666;
-  font-size: 13px;
-  margin: 6px 0;
-}
-
-.answer-item {
-  font-size: 13px;
-  color: #555;
-}
-
-.accepted-tag {
-  color: #67c23a;
-  font-size: 12px;
-  border: 1px solid #67c23a;
-  border-radius: 3px;
-  padding: 0 4px;
+@media (max-width: 640px) {
+  .qa-entry { align-items: flex-start; flex-direction: column; }
 }
 
 /* 两栏大纲（0.2 课程内容域） */

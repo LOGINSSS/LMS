@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,6 +55,13 @@ public class CourseController {
     @Operation(summary = "课程卡片详情")
     public R<CourseCardVO> getDetail(@PathVariable("id") Long id) {
         return R.ok(courseService.getCourseDetail(id));
+    }
+
+    /** 课程归属信息（登录可访问；供 lms-learning 答疑通知等内部场景查询归属教师与课程名） */
+    @GetMapping("/{id}/owner")
+    @Operation(summary = "课程归属信息（归属教师 id 与课程名）")
+    public R<Map<String, Object>> owner(@PathVariable("id") Long id) {
+        return R.ok(courseService.getCourseOwner(id));
     }
 
     /** 学生选课（幂等，重复选课报业务错误） */

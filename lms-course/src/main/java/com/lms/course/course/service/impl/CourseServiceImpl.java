@@ -631,4 +631,16 @@ public class CourseServiceImpl implements ICourseService {
                 })
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public Map<String, Object> getCourseOwner(Long id) {
+        //1. 课程存在性校验
+        Course course = courseMapper.selectById(id);
+        AssertUtils.notNull(course, CourseErrorInfo.COURSE_NOT_FOUND.getMsg());
+        //2. 组装归属信息（教师 id + 课程名）
+        Map<String, Object> owner = new java.util.HashMap<>(4);
+        owner.put("teacherId", course.getTeacherId());
+        owner.put("name", course.getName());
+        return owner;
+    }
 }
