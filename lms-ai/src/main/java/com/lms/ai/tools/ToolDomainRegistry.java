@@ -16,6 +16,7 @@ import java.util.Map;
 public class ToolDomainRegistry {
 
     private final CourseTools courseTools;
+    private final GrabTools grabTools;
     private final ExamTools examTools;
     private final LearningTools learningTools;
     private final SearchTools searchTools;
@@ -29,13 +30,14 @@ public class ToolDomainRegistry {
     private final EvalTools evalTools;
     private final LearningPipelineTools learningPipelineTools;
 
-    public ToolDomainRegistry(CourseTools courseTools, ExamTools examTools,
+    public ToolDomainRegistry(CourseTools courseTools, GrabTools grabTools, ExamTools examTools,
                               LearningTools learningTools, SearchTools searchTools,
                               RemarkTools remarkTools, UserTools userTools,
                               MediaTools mediaTools, StatisticsTools statisticsTools,
                               KbTools kbTools, ImTools imTools, TaskTools taskTools,
                               EvalTools evalTools, LearningPipelineTools learningPipelineTools) {
         this.courseTools = courseTools;
+        this.grabTools = grabTools;
         this.examTools = examTools;
         this.learningTools = learningTools;
         this.searchTools = searchTools;
@@ -54,6 +56,7 @@ public class ToolDomainRegistry {
     public Object bean(String prefix) {
         return switch (prefix) {
             case "course" -> courseTools;
+            case "grab" -> grabTools;
             case "exam" -> examTools;
             case "learning" -> learningTools;
             case "search" -> searchTools;
@@ -73,7 +76,7 @@ public class ToolDomainRegistry {
     /** 全量域（启动扫描元数据用） */
     public Map<String, Object> domains() {
         Map<String, Object> map = new LinkedHashMap<>();
-        for (String prefix : new String[]{"course", "exam", "learning", "search", "remark",
+        for (String prefix : new String[]{"course", "grab", "exam", "learning", "search", "remark",
                 "user", "media", "statistics", "kb", "im", "task", "eval", "pipeline"}) {
             Object b = bean(prefix);
             if (b != null) {

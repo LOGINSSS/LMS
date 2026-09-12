@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Agent 定时任务服务（spec §6：任务模型 + 落库轮询执行）
@@ -67,21 +68,22 @@ public class TaskService {
         return task.getTaskId();
     }
 
-    /** 查询任务状态与结果 */
-    public AgentTask query(String taskId) {
+    /** 查询本人任务状态与结果；任务不存在和归属不符使用相同错误，避免泄露任务是否存在。 */
+    public AgentTask queryOwned(String taskId, Long ownerId) {
         AgentTask task = taskMapper.selectOne(new LambdaQueryWrapper<AgentTask>()
                 .eq(AgentTask::getTaskId, taskId));
-        if (task == null) {
-            throw new CommonException("任务不存在: " + taskId);
+        if (task == null || !Objects.equals(task.getOwnerId(), ownerId)) {
+            throw new CommonException("任务不存在或无权访问");
         }
         return task;
     }
 
-    /** 取消未执行任务 */
+    /** 取消本人未执行任务；先校验归属，再按主键与状态条件更新。 */
     @Transactional
-    public void cancel(String taskId) {
+    public void cancelOwned(String taskId, Long ownerId) {
+        AgentTask owned = queryOwned(taskId, ownerId);
         taskMapper.update(null, new LambdaUpdateWrapper<AgentTask>()
-                .eq(AgentTask::getTaskId, taskId)
+                .eq(AgentTask::getId, owned.getId())
                 .eq(AgentTask::getStatus, AgentTask.STATUS_PENDING)
                 .set(AgentTask::getStatus, AgentTask.STATUS_CANCELED)
                 .set(AgentTask::getFinishTime, LocalDateTime.now()));

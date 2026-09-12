@@ -4,7 +4,8 @@ import com.lms.ai.session.AgentSessionService;
 import com.lms.ai.task.AgentTask;
 import com.lms.ai.task.TaskService;
 import com.lms.common.domain.R;
-import com.lms.common.exceptions.CommonException;
+import com.lms.common.exceptions.ForbiddenException;
+import com.lms.common.exceptions.UnauthorizedException;
 import com.lms.common.utils.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,9 +33,10 @@ public class TaskController {
     private final AgentSessionService sessionService;
 
     @PostMapping
-    @Operation(summary = "发布任务（agent 内部工具/管理端）")
+    @Operation(summary = "教师发布任务")
     public R<String> schedule(@RequestBody @Valid TaskScheduleRequest req) {
-        String taskId = taskService.schedule(req.taskType(), UserContext.getUser(), "admin",
+        Long teacherId = requireTeacher();
+        String taskId = taskService.schedule(req.taskType(), teacherId, "teacher-agent",
                 req.triggerType(), req.payload(), req.delaySeconds(), req.cron());
         return R.ok(taskId);
     }
@@ -42,20 +44,20 @@ public class TaskController {
     @GetMapping("/{taskId}")
     @Operation(summary = "任务状态与结果")
     public R<AgentTask> query(@PathVariable("taskId") String taskId) {
-        return R.ok(taskService.query(taskId));
+        return R.ok(taskService.queryOwned(taskId, requireUser()));
     }
 
     @PostMapping("/{taskId}/cancel")
     @Operation(summary = "取消任务")
     public R<Void> cancel(@PathVariable("taskId") String taskId) {
-        taskService.cancel(taskId);
+        taskService.cancelOwned(taskId, requireUser());
         return R.ok();
     }
 
     @GetMapping("/tree")
     @Operation(summary = "会话任务树（turn/邀请/写工具/管道节点，仅会话归属人）")
     public R<java.util.List<AgentTask>> tree(@RequestParam("sessionId") Long sessionId) {
-        sessionService.getOwned(UserContext.getUser(), sessionId);
+        sessionService.getOwned(requireUser(), sessionId);
         return R.ok(taskService.tree(sessionId));
     }
 
@@ -64,5 +66,21 @@ public class TaskController {
                                       java.util.Map<String, Object> payload,
                                       Integer delaySeconds,
                                       String cron) {
+    }
+
+    private Long requireUser() {
+        Long userId = UserContext.getUser();
+        if (userId == null) {
+            throw new UnauthorizedException("未登录");
+        }
+        return userId;
+    }
+
+    private Long requireTeacher() {
+        Long userId = requireUser();
+        if (!Integer.valueOf(2).equals(UserContext.getUserType())) {
+            throw new ForbiddenException("仅教师可发布任务");
+        }
+        return userId;
     }
 }

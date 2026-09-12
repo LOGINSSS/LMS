@@ -166,10 +166,12 @@ public class PolicyEngine {
             return PolicyDecision.deny("ROLE", roleReason);
         }
 
-        // 6. 风险分级：readOnly → ALLOW；risk=high → ask/deny/log；未知元数据 → 放行（审计提示）
+        // 6. 风险分级：readOnly → ALLOW；risk=high → ask/deny/log；未知元数据 → fail-closed
         Optional<ToolMetaService.ToolMeta> metaOpt = toolMetaService.resolve(toolId);
         if (metaOpt.isEmpty()) {
-            return PolicyDecision.allow("工具元数据未注册（按放行处理，请检查声明域与工具名一致）");
+            return PolicyDecision.deny("UNKNOWN_TOOL",
+                    "Harness 拦截：工具元数据未注册 " + safe(toolId)
+                            + "。为避免绕过策略，未知工具默认拒绝执行，请检查声明域与工具注册表。");
         }
         ToolMetaService.ToolMeta meta = metaOpt.get();
         if (meta.readOnly()) {

@@ -21,13 +21,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 工具工厂（spec §3.3：声明工具列表 → Toolkit；HEAVY_HARNESS_SPEC §6/§7：网关壳化）
  *
- * - 模块工具：按声明 tools 的 id 前缀（course/exam/learning/...）经 {@link ToolDomainRegistry} 取对应 Bean；
+ * - 模块工具：按声明 tools 的 id 前缀（course/exam/learning/...）经 {@link ToolDomainRegistry} 取对应 Bean，
+ *   并从 Bean 中精确保留 YAML 声明的方法，不按领域整组放行；
  * - 网关壳化（harness-v2.tool-gateway.enabled=true 时）：
  *   每个 @Tool 方法注册后，用 {@link Toolkit#getTool}/{@link Toolkit#removeTool}/{@link Toolkit#registerAgentTool}
  *   替换为同名 {@link GuardedFunctionTool} —— LLM 看到的工具名/描述/schema 不变（delegate 提供），
@@ -55,6 +59,7 @@ public class ToolFactory {
      * 按声明构建 Toolkit：注册声明的模块工具（网关壳化）+ 邀请制的子 agent 工具（spec §3.2/§5.1）
      */
     public Toolkit build(AgentDeclaration decl) {
+        rejectDuplicateFunctionNames(decl);
         Toolkit toolkit = new Toolkit();
         Set<String> loaded = new HashSet<>();
         boolean guarded = v2.isEnabled() && v2.isToolGatewayEnabled();
@@ -65,13 +70,14 @@ public class ToolFactory {
             }
             Object bean = domainRegistry.bean(prefix);
             if (bean == null) {
-                log.warn("声明工具前缀无对应 Bean: {}（agent={}）", prefix, decl.getName());
-                continue;
+                throw new IllegalStateException(
+                        "工具域未注册 domain=" + prefix + " agent=" + decl.getName() + "，已拒绝构建 Toolkit");
             }
             toolkit.registerTool(bean);
-            if (guarded) {
-                registerGuarded(toolkit, prefix, bean, decl.getName());
-            }
+            Set<String> declaredTools = decl.getTools().stream()
+                    .filter(id -> id.startsWith(prefix + "."))
+                    .collect(Collectors.toSet());
+            registerDeclared(toolkit, prefix, bean, decl.getName(), declaredTools, guarded);
         }
         // 邀请制：声明 subAgents → SubAgentTool（静态声明，父调子，推荐主用，spec §5.1 ①）
         for (String subName : decl.getSubAgents()) {
@@ -84,12 +90,29 @@ public class ToolFactory {
         return toolkit;
     }
 
+    /** AgentScope 以 @Tool.name 暴露函数；不同领域的同名函数不能安全地共存于同一个 Toolkit。 */
+    private void rejectDuplicateFunctionNames(AgentDeclaration decl) {
+        Map<String, String> ownerByFunctionName = new HashMap<>();
+        for (String toolId : decl.getTools()) {
+            int separator = toolId.indexOf('.');
+            String functionName = separator < 0 ? toolId : toolId.substring(separator + 1);
+            String previous = ownerByFunctionName.putIfAbsent(functionName, toolId);
+            if (previous != null && !previous.equals(toolId)) {
+                throw new IllegalStateException(
+                        "工具名冲突 function=" + functionName + " declarations=[" + previous + ", " + toolId
+                                + "] agent=" + decl.getName() + "，已拒绝构建 Toolkit");
+            }
+        }
+    }
+
     /**
-     * 网关壳化：把刚注册的域 Bean 上每个 @Tool 方法替换为同名 GuardedFunctionTool。
-     * 步骤：getTool(原始) → removeTool → registerAgentTool(壳)。任一失败则把原始工具放回（warn，不回退整体，
-     * 避免 remove 后注册失败导致工具丢失破坏 function-calling）。
+     * 声明过滤与网关壳化：移除域 Bean 上未声明的方法，并把声明的 @Tool 方法替换为同名 GuardedFunctionTool。
+     * 步骤：getTool(原始) → removeTool → registerAgentTool(壳)。任一失败立即中止 Toolkit 构建，
+     * 禁止恢复未经过策略网关的原始工具。
      */
-    private void registerGuarded(Toolkit toolkit, String prefix, Object bean, String agentName) {
+    private void registerDeclared(Toolkit toolkit, String prefix, Object bean, String agentName,
+                                  Set<String> declaredTools, boolean guarded) {
+        Set<String> found = new HashSet<>();
         for (Method m : bean.getClass().getMethods()) {
             Tool ann = m.getAnnotation(Tool.class);
             if (ann == null) {
@@ -97,12 +120,20 @@ public class ToolFactory {
             }
             String name = ann.name();
             String toolId = prefix + "." + name;
-            AgentTool raw = null;
+            if (!declaredTools.contains(toolId)) {
+                if (toolkit.getTool(name) != null) {
+                    toolkit.removeTool(name);
+                }
+                continue;
+            }
+            found.add(toolId);
+            if (!guarded) {
+                continue;
+            }
             try {
-                raw = toolkit.getTool(name);
+                AgentTool raw = toolkit.getTool(name);
                 if (raw == null) {
-                    log.warn("网关壳化跳过：注册表无工具 {}（agent={}）", toolId, agentName);
-                    continue;
+                    throw new IllegalStateException("Toolkit 中不存在声明工具 " + toolId);
                 }
                 toolkit.removeTool(name);
                 boolean writeTool = !toolMetaService.resolve(toolId)
@@ -110,17 +141,15 @@ public class ToolFactory {
                 toolkit.registerAgentTool(new GuardedFunctionTool(raw, toolId, writeTool,
                         policyEngine, traceService, toolControlService, taskService));
             } catch (Exception e) {
-                log.warn("网关壳化失败 tool={} agent={}（回退原始注册）: {}", toolId, agentName, e.getMessage());
-                if (raw != null) {
-                    try {
-                        if (toolkit.getTool(name) == null) {
-                            toolkit.registerAgentTool(raw);
-                        }
-                    } catch (Exception re) {
-                        log.error("网关壳化回退失败 tool={}: {}", toolId, re.getMessage());
-                    }
-                }
+                throw new IllegalStateException(
+                        "工具网关壳化失败 tool=" + toolId + " agent=" + agentName + "，已拒绝构建 Toolkit", e);
             }
+        }
+        Set<String> missing = new HashSet<>(declaredTools);
+        missing.removeAll(found);
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException(
+                    "声明工具未注册 tools=" + missing + " agent=" + agentName + "，已拒绝构建 Toolkit");
         }
     }
 

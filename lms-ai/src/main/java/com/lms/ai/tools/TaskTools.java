@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -28,8 +29,8 @@ public class TaskTools {
             @ToolParam(name = "delaySeconds", description = "延迟秒数（延迟任务）", required = false) Integer delaySeconds,
             @ToolParam(name = "cron", description = "周期 cron（周期任务）", required = false) String cron,
             RuntimeContext ctx) {
-        Long userId = ToolSupport.enter(ctx);
         try {
+            Long userId = ToolSupport.requireUser(ctx);
             Map<String, Object> payload = new HashMap<>();
             if (payloadJson != null && !payloadJson.isBlank()) {
                 payload = JSONUtil.parseObj(payloadJson);
@@ -37,7 +38,8 @@ public class TaskTools {
             int triggerType = cron != null && !cron.isBlank() ? AgentTask.TRIGGER_CRON
                     : (delaySeconds != null ? AgentTask.TRIGGER_DELAY : AgentTask.TRIGGER_ONCE);
             String taskId = taskService.schedule(taskType, userId, "agent", triggerType, payload, delaySeconds, cron);
-            return ToolSupport.json(Map.of("taskId", taskId, "executeTime", taskService.query(taskId).getExecuteTime()));
+            return ToolSupport.json(Map.of("taskId", taskId,
+                    "executeTime", taskService.queryOwned(taskId, userId).getExecuteTime()));
         } catch (Exception e) {
             return ToolSupport.fail(e);
         } finally {
@@ -46,25 +48,37 @@ public class TaskTools {
     }
 
     @Tool(name = "query", description = "查询任务状态与结果（taskId）", readOnly = true)
-    public String query(@ToolParam(name = "taskId", description = "任务 id") String taskId) {
+    public String query(@ToolParam(name = "taskId", description = "任务 id") String taskId,
+                        RuntimeContext ctx) {
         try {
-            AgentTask t = taskService.query(taskId);
-            return ToolSupport.json(Map.of(
-                    "taskId", t.getTaskId(), "taskType", t.getTaskType(),
-                    "status", t.getStatus(), "result", t.getResult(),
-                    "errorMsg", t.getErrorMsg(), "executeTime", t.getExecuteTime()));
+            Long userId = ToolSupport.requireUser(ctx);
+            AgentTask t = taskService.queryOwned(taskId, userId);
+            Map<String, Object> view = new LinkedHashMap<>();
+            view.put("taskId", t.getTaskId());
+            view.put("taskType", t.getTaskType());
+            view.put("status", t.getStatus());
+            view.put("result", t.getResult());
+            view.put("errorMsg", t.getErrorMsg());
+            view.put("executeTime", t.getExecuteTime());
+            return ToolSupport.json(view);
         } catch (Exception e) {
             return ToolSupport.fail(e);
+        } finally {
+            ToolSupport.exit();
         }
     }
 
     @Tool(name = "cancel", description = "取消未执行任务（taskId）")
-    public String cancel(@ToolParam(name = "taskId", description = "任务 id") String taskId) {
+    public String cancel(@ToolParam(name = "taskId", description = "任务 id") String taskId,
+                         RuntimeContext ctx) {
         try {
-            taskService.cancel(taskId);
+            Long userId = ToolSupport.requireUser(ctx);
+            taskService.cancelOwned(taskId, userId);
             return "ok";
         } catch (Exception e) {
             return ToolSupport.fail(e);
+        } finally {
+            ToolSupport.exit();
         }
     }
 }
