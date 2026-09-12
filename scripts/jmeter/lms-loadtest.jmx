@@ -4,7 +4,7 @@
 
   结构：
     阶梯线程组 × 5      → 50 / 100 / 200 / 400 / 800 线程，串行执行，各持续 duration（默认60s）
-    每个线程组带 Authorization 头（Bearer ${__P(token,eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQsInVzZXJUeXBlIjoxLCJ1c2VybmFtZSI6InN0dTAwMSIsImp0aSI6ImRlMjBjYWNhYThiNzRlM2NiZTQ5Y2Q3NGM1OWZiMGVlIiwiaWF0IjoxNzg4MDk0MTcwLCJleHAiOjE3ODgxODA1NzB9.eSw_75fQqjN_iB5KAVzfi74nK8d3dQ5OrOPAGe6Cz1w)}，命令行 -Jtoken 可覆盖）
+    每个线程组带 Authorization 头；必须通过命令行 -Jtoken=... 注入，仓库不保存凭证。
     每个线程组打两个课程读接口：
       课程详情   GET /courses/{id}
       课程广场   GET /courses/page?pageNo=1&pageSize=10
@@ -12,7 +12,7 @@
   命令行运行：
     "D:\...\apache-jmeter-5.6.3\bin\jmeter.bat" -n -t "D:\...\scripts\jmeter\lms-loadtest.jmx" ^
       -JcourseId=1 -Jduration=60 -l D:\jmeter\baseline.jtl -e -o D:\jmeter\baseline-report
-  可选：-Jtoken=xxx（覆盖内置 token）
+  必填：-Jtoken=xxx（由登录接口临时获取；禁止写入仓库）
 -->
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
@@ -64,7 +64,7 @@
           <collectionProp name="HeaderManager.headers">
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">Authorization</stringProp>
-              <stringProp name="Header.value">Bearer ${__P(token,eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQsInVzZXJUeXBlIjoxLCJ1c2VybmFtZSI6InN0dTAwMSIsImp0aSI6ImRlMjBjYWNhYThiNzRlM2NiZTQ5Y2Q3NGM1OWZiMGVlIiwiaWF0IjoxNzg4MDk0MTcwLCJleHAiOjE3ODgxODA1NzB9.eSw_75fQqjN_iB5KAVzfi74nK8d3dQ5OrOPAGe6Cz1w)}</stringProp>
+              <stringProp name="Header.value">Bearer ${__P(token,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -116,7 +116,7 @@
           <collectionProp name="HeaderManager.headers">
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">Authorization</stringProp>
-              <stringProp name="Header.value">Bearer ${__P(token,eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQsInVzZXJUeXBlIjoxLCJ1c2VybmFtZSI6InN0dTAwMSIsImp0aSI6ImRlMjBjYWNhYThiNzRlM2NiZTQ5Y2Q3NGM1OWZiMGVlIiwiaWF0IjoxNzg4MDk0MTcwLCJleHAiOjE3ODgxODA1NzB9.eSw_75fQqjN_iB5KAVzfi74nK8d3dQ5OrOPAGe6Cz1w)}</stringProp>
+              <stringProp name="Header.value">Bearer ${__P(token,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -168,7 +168,7 @@
           <collectionProp name="HeaderManager.headers">
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">Authorization</stringProp>
-              <stringProp name="Header.value">Bearer ${__P(token,eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQsInVzZXJUeXBlIjoxLCJ1c2VybmFtZSI6InN0dTAwMSIsImp0aSI6ImRlMjBjYWNhYThiNzRlM2NiZTQ5Y2Q3NGM1OWZiMGVlIiwiaWF0IjoxNzg4MDk0MTcwLCJleHAiOjE3ODgxODA1NzB9.eSw_75fQqjN_iB5KAVzfi74nK8d3dQ5OrOPAGe6Cz1w)}</stringProp>
+              <stringProp name="Header.value">Bearer ${__P(token,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -220,7 +220,7 @@
           <collectionProp name="HeaderManager.headers">
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">Authorization</stringProp>
-              <stringProp name="Header.value">Bearer ${__P(token,eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQsInVzZXJUeXBlIjoxLCJ1c2VybmFtZSI6InN0dTAwMSIsImp0aSI6ImRlMjBjYWNhYThiNzRlM2NiZTQ5Y2Q3NGM1OWZiMGVlIiwiaWF0IjoxNzg4MDk0MTcwLCJleHAiOjE3ODgxODA1NzB9.eSw_75fQqjN_iB5KAVzfi74nK8d3dQ5OrOPAGe6Cz1w)}</stringProp>
+              <stringProp name="Header.value">Bearer ${__P(token,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -272,7 +272,7 @@
           <collectionProp name="HeaderManager.headers">
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">Authorization</stringProp>
-              <stringProp name="Header.value">Bearer ${__P(token,eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQsInVzZXJUeXBlIjoxLCJ1c2VybmFtZSI6InN0dTAwMSIsImp0aSI6ImRlMjBjYWNhYThiNzRlM2NiZTQ5Y2Q3NGM1OWZiMGVlIiwiaWF0IjoxNzg4MDk0MTcwLCJleHAiOjE3ODgxODA1NzB9.eSw_75fQqjN_iB5KAVzfi74nK8d3dQ5OrOPAGe6Cz1w)}</stringProp>
+              <stringProp name="Header.value">Bearer ${__P(token,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
