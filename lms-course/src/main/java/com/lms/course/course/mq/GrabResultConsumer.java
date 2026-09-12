@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  *
  * 监听 lms-grab 发的 lms-grab-success 消息，幂等异步落库 course_enrollment：
  * - 幂等：uk_course_student 唯一索引 + DuplicateKeyException 兜底；
- * - 失败：抛异常走 Kafka 重试，超时由 lms-grab 对账回补。
+ * - 失败：抛异常走 Kafka 重试；lms-grab 在未收到回执时安全重投原事件。
  */
 @Slf4j
 @Component
@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 public class GrabResultConsumer {
 
     private final CourseEnrollmentMapper enrollmentMapper;
+    private final GrabLandedProducer landedProducer;
 
     @KafkaListener(topics = "${lms.grab.topic:lms-grab-success}", groupId = "lms-course-grab")
     public void onGrabSuccess(String message) {
@@ -31,7 +32,12 @@ public class GrabResultConsumer {
         JSONObject json = JSONUtil.parseObj(message);
         Long courseId = json.getLong("courseId");
         Long userId = json.getLong("userId");
-        if (courseId == null || userId == null) {
+        Long recordId = json.getLong("recordId");
+        if (recordId == null) {
+            // 兼容修复前已进入 Kafka 的旧消息，避免升级窗口内消息被静默丢弃。
+            recordId = json.getLong("grabRecordId");
+        }
+        if (courseId == null || userId == null || recordId == null) {
             log.warn("抢课消息字段缺失，丢弃: {}", message);
             return;
         }
@@ -55,5 +61,7 @@ public class GrabResultConsumer {
                 enrollmentMapper.updateById(existed);
             }
         }
+        // 首次落库或幂等重复消费都发回执；回执丢失时 grab 重发原事件即可再次触发。
+        landedProducer.publish(recordId, courseId, userId);
     }
 }

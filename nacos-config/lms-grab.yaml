@@ -43,6 +43,8 @@ lms:
   grab:
     # 抢课成功事件 Kafka topic（lms-course 消费端异步落库 course_enrollment）
     topic: lms-grab-success
+    # 课程落库成功回执 topic
+    landed-topic: lms-grab-landed
     # 抢课窗口 Redis key 前缀
     window-key-prefix: grab:window
     stock-key-prefix: grab:stock

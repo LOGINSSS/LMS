@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  *
  * Redis 预检成功后发 Kafka topic（默认 lms-grab-success），
  * lms-course 消费端幂等落库 course_enrollment。
- * 消息 value 为 JSON：{"courseId":..,"userId":..,"grabTime":"..","grabRecordId":..}
+ * 消息 value 为 JSON：{"courseId":..,"userId":..,"grabTime":"..","recordId":..}
  */
 @Slf4j
 @Component
@@ -23,7 +23,7 @@ public class GrabEventProducer {
 
     public void publishSuccess(Long courseId, Long userId, String grabTime, Long grabRecordId) {
         String message = String.format(
-                "{\"courseId\":%d,\"userId\":%d,\"grabTime\":\"%s\",\"grabRecordId\":%d}",
+                "{\"courseId\":%d,\"userId\":%d,\"grabTime\":\"%s\",\"recordId\":%d}",
                 courseId, userId, grabTime, grabRecordId);
         try {
             // key=courseId，保证同一课程的落库消息有序

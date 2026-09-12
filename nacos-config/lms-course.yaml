@@ -28,6 +28,8 @@ lms:
   grab:
     # 抢课成功事件 topic（lms-grab 生产者同名）
     topic: lms-grab-success
+    # 课程落库成功回执（lms-grab 消费后 PENDING → LANDED）
+    landed-topic: lms-grab-landed
   cache:
     # 课程详情/大纲/正文缓存 TTL（分钟）
     course-detail-ttl-minutes: 30
